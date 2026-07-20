@@ -62,6 +62,59 @@ realtime-gps/
 
 ---
 
+## The system being built
+
+![GPS Server Infrastructure](docs/images/gps-server-infrastructure.png)
+
+The platform ingests high-volume user location pings, caches each user's last known position for
+radius queries, streams every position through a message queue into durable storage, and serves
+location history and per-user metadata — all behind an API gateway that authenticates every call.
+The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
+
+```
+                    ┌──────────────────────── Kong (:8000) ────────────────────────┐
+   Clients ────────►│  rls_auth plugin ──► id-service /api/v1/internal/authenticate │
+                    └───┬───────────────┬───────────────┬──────────────────────────┘
+                        │               │               │
+                 ping-service    history-service   metadata-service      id-service
+                        │               ▲                │                    │
+                 Redis  │               │ RabbitMQ       │ MySQL              │ MySQL
+             (last loc, │               │ (sole          │ gps_metadata       │ gps_id
+              GEO index)└──► RabbitMQ ──┘  consumer)     │                    │
+                                         └──► MySQL gps_history
+
+  Consul: configuration (KV) + service registry + DNS used by Kong to resolve upstreams
+```
+
+| Service | Responsibility |
+|---|---|
+| **Ping** | Receives all location pings. Buffers them in memory, publishes them to RabbitMQ in bulk, keeps each user's *last* location in Redis, answers radius queries. |
+| **History** | The **only** RabbitMQ consumer. Writes locations to MySQL and serves location history. |
+| **Id** | Companies, users, tokens, and the gateway's authenticate hook. |
+| **Metadata** | Dynamic per-user JSON metadata with a MATCH/EXCEPT/ANY/ALL query language. |
+| **Gateway (Kong)** | The only public entry point; restricted endpoints are never routed through it. |
+
+## Milestones
+
+| # | Milestone | Commits | Status |
+|---|---|---|---|
+| C1 | Scaffolding + `gps-common` shared library | C1.1 – C1.8 | 🔵 in progress |
+| C2 | Local infrastructure (MySQL, Redis, RabbitMQ, Consul) | C2.1 – C2.4 | ⬜ planned |
+| C3 | Id service — company signup | C3.1 – C3.6 | ⬜ planned |
+| C4 | Id service — users, tokens, internal authenticate | C4.1 – C4.6 | ⬜ planned |
+| C5 | Kong gateway + `rls_auth` plugin | C5.1 – C5.5 | ⬜ planned |
+| C6 | Ping service — Redis write path | C6.1 – C6.4 | ⬜ planned |
+| C7 | Ping service — buffer → RabbitMQ bulk publish | C7.1 – C7.4 | ⬜ planned |
+| C8 | Ping service — radius search | C8.1 – C8.2 | ⬜ planned |
+| C9 | History service — queue consumer → MySQL | C9.1 – C9.4 | ⬜ planned |
+| C10 | History service — history API | C10.1 – C10.2 | ⬜ planned |
+| C11 | Metadata service — CRUD | C11.1 – C11.5 | ⬜ planned |
+| C12 | Metadata service — MATCH/EXCEPT/ANY/ALL search | C12.1 – C12.5 | ⬜ planned |
+| C13 | Observability, resilience, OpenAPI | C13.1 – C13.4 | ⬜ planned |
+| C14 | End-to-end suite + load harness | C14.1 – C14.3 | ⬜ planned |
+
+---
+
 ## Commit log
 
 ### C1.1 — Maven reactor and JDK-pinned build script
@@ -72,3 +125,11 @@ phases, JaCoCo coverage, and the empty `gps-common` module the next commits fill
 `scripts/build.sh` exists because Maven here runs on JDK 17 by default.
 
 *Verify:* `./scripts/build.sh` → `BUILD SUCCESS`.
+
+### C1.2 — Original specification and architecture diagram
+
+Adds the source requirements to the repository so the implementation can be checked against them:
+the specification document, its PDF original, and the infrastructure diagram (extracted from the
+PDF) that the README now shows. Also records the milestone breakdown this build follows.
+
+*Verify:* nothing to run — documentation only.
