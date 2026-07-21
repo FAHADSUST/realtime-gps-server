@@ -159,3 +159,34 @@ path relative to the context path, for filter pattern matching). No Spring wirin
 plain types with unit tests.
 
 *Verify:* `./scripts/build.sh test` → 6 tests in `gps-common`.
+
+### C1.4 — RFC 7807 error model
+
+Every failure in every service now renders as `application/problem+json` with a stable,
+machine-readable `code`, a `timestamp`, and (from C1.5) a `traceId`:
+
+```json
+{
+  "type": "https://docs.rls.gps/errors/validation_failed",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Request validation failed",
+  "code": "validation_failed",
+  "errors": ["count: must be greater than or equal to 1", "name: must not be blank"],
+  "timestamp": "2026-09-14T13:22:05Z"
+}
+```
+
+- `ApiException` / `ApiExceptions` — services throw `ApiExceptions.notFound("company_not_found", …)`
+  and the status and code travel with the exception.
+- `GlobalExceptionHandler` — extends Spring's `ResponseEntityExceptionHandler`, so framework
+  failures (405, 415, malformed JSON) get the same shape. Bean Validation failures list every
+  offending field. Unexpected exceptions become a generic `internal_error`; the stack trace goes to
+  the log, never to the client.
+- `ProblemWriter` — the same rendering for servlet filters, which run outside the advice chain.
+- `GpsCommonAutoConfiguration` — registers the above through
+  `META-INF/spring/…AutoConfiguration.imports`, so a service gets it by depending on the module.
+
+*Verify:* `./scripts/build.sh test` → `ProblemDetailErrorsTest` (4 tests).
+
+<!-- next-commit-log-entry -->
