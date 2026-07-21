@@ -115,6 +115,23 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 
 ---
 
+## Shared library — `libs/gps-common`
+
+Every service depends on this module, so cross-cutting behaviour is defined once.
+
+### Vocabulary
+
+[`GpsHeaders`](libs/gps-common/src/main/java/com/rls/gps/common/web/GpsHeaders.java) names the
+headers exchanged between Kong and the services. The identity headers — `X-Company-Id`,
+`X-User-Id`, `X-App-Key` — are **never** trusted from a client: the gateway strips whatever the
+caller sent and re-injects the values it verified.
+
+[`Identity`](libs/gps-common/src/main/java/com/rls/gps/common/security/Identity.java) is the
+immutable caller identity carried on every downstream request. `isComplete()` (company **and** user
+present, non-blank) is what "authenticated" means to a service.
+
+---
+
 ## Commit log
 
 ### C1.1 — Maven reactor and JDK-pinned build script
@@ -133,3 +150,12 @@ the specification document, its PDF original, and the infrastructure diagram (ex
 PDF) that the README now shows. Also records the milestone breakdown this build follows.
 
 *Verify:* nothing to run — documentation only.
+
+### C1.3 — Shared identity and header vocabulary
+
+The types every later commit speaks in: `GpsHeaders` (the Kong ↔ service header contract),
+`Identity` (company + user + app key, with blank-safe `isComplete()`), and `RequestPaths` (request
+path relative to the context path, for filter pattern matching). No Spring wiring yet — these are
+plain types with unit tests.
+
+*Verify:* `./scripts/build.sh test` → 6 tests in `gps-common`.
