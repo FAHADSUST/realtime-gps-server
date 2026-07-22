@@ -189,4 +189,16 @@ machine-readable `code`, a `timestamp`, and (from C1.5) a `traceId`:
 
 *Verify:* `./scripts/build.sh test` → `ProblemDetailErrorsTest` (4 tests).
 
+### C1.5 — Correlation ids across every hop
+
+`CorrelationIdFilter` adopts the id Kong sends (`X-Correlation-Id`, falling back to
+`X-Request-Id`) or mints a UUID, publishes it to the logging MDC for the whole request, echoes it
+on the response, and — because `GlobalExceptionHandler` and `ProblemWriter` read the same MDC key —
+stamps it into every error body as `traceId`.
+
+That is what makes a single request traceable across Kong → ping → RabbitMQ → history, and lets a
+user quote one id in a bug report.
+
+*Verify:* `./scripts/build.sh test` → `CorrelationIdFilterTest` (3 tests).
+
 <!-- next-commit-log-entry -->
