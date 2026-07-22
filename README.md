@@ -201,4 +201,21 @@ user quote one id in a bug report.
 
 *Verify:* `./scripts/build.sh test` → `CorrelationIdFilterTest` (3 tests).
 
+### C1.6 — Identity propagation into controllers
+
+`IdentityFilter` turns the gateway's headers into an immutable `Identity` request attribute and
+pushes `companyId`/`userId` into the MDC, so every log line for the request says who it was for.
+`IdentityArgumentResolver` then injects it straight into controller methods:
+
+```java
+@GetMapping("/api/v1/history")
+List<Location> history(@CurrentIdentity Identity caller) { ... }
+```
+
+A request without a complete identity is rejected with a 401 `identity_required` problem *before*
+the controller body runs, so no endpoint can forget the check. `@CurrentIdentity(required = false)`
+opts an endpoint into anonymous access.
+
+*Verify:* `./scripts/build.sh test` → `IdentityResolutionTest` (4 tests).
+
 <!-- next-commit-log-entry -->
