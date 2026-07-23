@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rls.gps.common.error.GlobalExceptionHandler;
+import com.rls.gps.common.security.GatewayTokenFilter;
 import com.rls.gps.common.security.IdentityArgumentResolver;
 import com.rls.gps.common.security.IdentityFilter;
 import com.rls.gps.common.web.CorrelationIdFilter;
@@ -14,6 +15,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -27,10 +29,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  */
 @AutoConfiguration(after = JacksonAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@EnableConfigurationProperties(GpsCommonProperties.class)
 public class GpsCommonAutoConfiguration {
 
     /** Ordered first so every later filter and the error handler can log with a trace id. */
     public static final int CORRELATION_FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE + 10;
+    public static final int GATEWAY_TOKEN_FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE + 20;
     public static final int IDENTITY_FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE + 30;
 
     @Bean
@@ -59,6 +63,19 @@ public class GpsCommonAutoConfiguration {
                                             Environment environment) {
         String serviceName = environment.getProperty("spring.application.name", "gps-service");
         return new PingController(serviceName, buildProperties);
+    }
+
+    @Bean
+    public FilterRegistrationBean<GatewayTokenFilter> gpsGatewayTokenFilter(GpsCommonProperties properties,
+                                                                            ProblemWriter problemWriter) {
+        GpsCommonProperties.Gateway gateway = properties.gateway();
+        List<String> skipPaths = gateway == null ? List.of() : gateway.skipPaths();
+        String token = gateway == null ? null : gateway.token();
+
+        FilterRegistrationBean<GatewayTokenFilter> registration =
+                new FilterRegistrationBean<>(new GatewayTokenFilter(token, skipPaths, problemWriter));
+        registration.setOrder(GATEWAY_TOKEN_FILTER_ORDER);
+        return registration;
     }
 
     @Bean

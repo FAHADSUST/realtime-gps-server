@@ -98,7 +98,7 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 
 | # | Milestone | Commits | Status |
 |---|---|---|---|
-| C1 | Scaffolding + `gps-common` shared library | C1.1 – C1.8 | 🔵 in progress |
+| C1 | Scaffolding + `gps-common` shared library | C1.1 – C1.8 | ✅ done |
 | C2 | Local infrastructure (MySQL, Redis, RabbitMQ, Consul) | C2.1 – C2.4 | ⬜ planned |
 | C3 | Id service — company signup | C3.1 – C3.6 | ⬜ planned |
 | C4 | Id service — users, tokens, internal authenticate | C4.1 – C4.6 | ⬜ planned |
@@ -129,6 +129,28 @@ caller sent and re-injects the values it verified.
 [`Identity`](libs/gps-common/src/main/java/com/rls/gps/common/security/Identity.java) is the
 immutable caller identity carried on every downstream request. `isComplete()` (company **and** user
 present, non-blank) is what "authenticated" means to a service.
+
+### What a service gets for free
+
+Depend on the module and the auto-configuration supplies all of this — no imports, no boilerplate:
+
+| Capability | Type | Behaviour |
+|---|---|---|
+| `GET /api/v1/ping` | `PingController` | service name, status, build version; unauthenticated for probes |
+| Gateway trust check | `GatewayTokenFilter` | constant-time shared-secret check; 401 if the request did not come through Kong |
+| Identity injection | `IdentityFilter`, `@CurrentIdentity` | headers → `Identity` + MDC; 401 when an endpoint needs one and there is none |
+| Correlation ids | `CorrelationIdFilter` | adopt/mint, MDC, response header, `traceId` in errors |
+| Errors | `GlobalExceptionHandler`, `ProblemWriter` | RFC 7807 with a stable `code` |
+
+Filter order is correlation id (`HIGHEST+10`) → gateway token (`+20`) → identity (`+30`), so even a
+rejected request is logged with a trace id.
+
+Configuration ([`GpsCommonProperties`](libs/gps-common/src/main/java/com/rls/gps/common/config/GpsCommonProperties.java)):
+
+| Property | Default | Purpose |
+|---|---|---|
+| `gps.common.gateway.token` | *(empty — check disabled)* | shared secret Kong presents |
+| `gps.common.gateway.skip-paths` | `/actuator/**`, `/api/v1/ping`, `/v3/api-docs/**`, `/swagger-ui/**`, `/error` | paths exempt from the check |
 
 ---
 
@@ -229,5 +251,21 @@ build version, and stays unauthenticated so Consul, Kong and load balancers can 
 ```
 
 *Verify:* `./scripts/build.sh test` → `PingEndpointTest`.
+
+### C1.8 — Gateway trust boundary
+
+Downstream services trust `X-User-Id` only because Kong verified it. That is safe only if a service
+cannot be called directly, so `GatewayTokenFilter` requires a shared secret
+(`gps.common.gateway.token`, seeded from Consul KV) that only Kong knows. The comparison is
+constant-time, failures render as a 401 `gateway_token_invalid` problem, and health/doc paths
+(`gps.common.gateway.skip-paths`) stay open so probes keep working.
+
+The check disables itself when no token is configured, which keeps local runs and tests simple
+without weakening a deployed environment.
+
+This completes the shared library. Filter order: correlation id → gateway token → identity, so even
+a rejected request is logged with a trace id.
+
+*Verify:* `./scripts/build.sh test` → 22 tests in `gps-common`.
 
 <!-- next-commit-log-entry -->
