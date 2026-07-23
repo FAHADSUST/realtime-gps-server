@@ -7,14 +7,18 @@ import com.rls.gps.common.error.GlobalExceptionHandler;
 import com.rls.gps.common.security.IdentityArgumentResolver;
 import com.rls.gps.common.security.IdentityFilter;
 import com.rls.gps.common.web.CorrelationIdFilter;
+import com.rls.gps.common.web.PingController;
 import com.rls.gps.common.web.ProblemWriter;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
+import org.springframework.core.env.Environment;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -47,6 +51,14 @@ public class GpsCommonAutoConfiguration {
                 new FilterRegistrationBean<>(new CorrelationIdFilter());
         registration.setOrder(CORRELATION_FILTER_ORDER);
         return registration;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PingController gpsPingController(ObjectProvider<BuildProperties> buildProperties,
+                                            Environment environment) {
+        String serviceName = environment.getProperty("spring.application.name", "gps-service");
+        return new PingController(serviceName, buildProperties);
     }
 
     @Bean

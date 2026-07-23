@@ -218,4 +218,16 @@ opts an endpoint into anonymous access.
 
 *Verify:* `./scripts/build.sh test` → `IdentityResolutionTest` (4 tests).
 
+### C1.7 — Shared `GET /api/v1/ping` endpoint
+
+The spec requires this endpoint on all four services, so it ships in the shared library rather than
+being copy-pasted four times. It reports the service name (`spring.application.name`), status and
+build version, and stays unauthenticated so Consul, Kong and load balancers can probe it:
+
+```json
+{ "service": "id-service", "status": "UP", "version": "0.1.0", "timestamp": "2026-09-14T13:22:05Z" }
+```
+
+*Verify:* `./scripts/build.sh test` → `PingEndpointTest`.
+
 <!-- next-commit-log-entry -->
