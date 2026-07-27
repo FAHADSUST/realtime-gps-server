@@ -31,8 +31,26 @@ services:
       start_period: 40s
     networks: [gps-net]
 
+  redis:
+    image: redis:7-alpine
+    container_name: gps-redis
+    # noeviction: a silently evicted geo entry would mean a user vanishing from radius results.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks: [gps-net]
+
 volumes:
   mysql-data:
+  redis-data:
 
 networks:
   gps-net:

@@ -283,4 +283,20 @@ to discard the data volumes.
 *Verify:* `./scripts/up.sh` → `gps-mysql` healthy, then
 `docker exec gps-mysql mysql -uroot -prootpw -e "SHOW DATABASES"` lists the three schemas.
 
+### C2.2 — Redis for last-known locations
+
+Redis is where the ping service will keep each user's *last* position plus the geo index that
+answers radius queries. Two deliberate settings:
+
+- `--maxmemory-policy noeviction` — the default LRU policy would let Redis silently drop geo
+  entries under pressure, which shows up as a user disappearing from a radius result rather than as
+  an error. Failing loudly is better.
+- `--appendonly yes` — a restart during development shouldn't wipe the cache.
+
+The original spec pinned Redis 5.0.6; this uses Redis 7 so radius queries can use `GEOSEARCH`
+(`GEORADIUS`, deprecated in 6.2, is the fallback if you must stay on 5.x).
+
+*Verify:* `./scripts/up.sh redis` → `gps-redis` healthy, `docker exec gps-redis redis-cli ping`
+returns `PONG`.
+
 <!-- next-commit-log-entry -->
