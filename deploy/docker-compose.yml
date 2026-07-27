@@ -1,0 +1,40 @@
+name: realtime-gps
+
+# Local stand-in for the AWS infrastructure in the original spec:
+#   RDS MySQL      -> mysql
+#   ElastiCache    -> redis
+#   EC2 RabbitMQ   -> rabbitmq
+#   EC2 Consul     -> consul
+# Services and Kong are added to this file by later commits.
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gps-mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --max_connections=500
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpw}
+      TZ: UTC
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks: [gps-net]
+
+volumes:
+  mysql-data:
+
+networks:
+  gps-net:
+    name: gps-net
+    driver: bridge

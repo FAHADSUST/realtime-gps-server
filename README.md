@@ -268,4 +268,19 @@ a rejected request is logged with a trace id.
 
 *Verify:* `./scripts/build.sh test` → 22 tests in `gps-common`.
 
+### C2.1 — MySQL with a schema per service
+
+Starts the local infrastructure stack with MySQL 8 — the stand-in for RDS in the original design.
+[`01-schemas.sql`](deploy/mysql/init/01-schemas.sql) runs on first boot and creates one schema and
+one user per service: `gps_id`, `gps_history`, `gps_metadata`.
+
+Separate schemas mean no service can read another's tables by accident and each keeps its own Flyway
+history. (Ping needs no schema — its state lives in Redis and the queue.)
+
+`scripts/up.sh` starts the stack and waits for health checks; `scripts/down.sh` stops it, with `-v`
+to discard the data volumes.
+
+*Verify:* `./scripts/up.sh` → `gps-mysql` healthy, then
+`docker exec gps-mysql mysql -uroot -prootpw -e "SHOW DATABASES"` lists the three schemas.
+
 <!-- next-commit-log-entry -->
