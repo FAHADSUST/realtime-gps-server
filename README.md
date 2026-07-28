@@ -299,4 +299,19 @@ The original spec pinned Redis 5.0.6; this uses Redis 7 so radius queries can us
 *Verify:* `./scripts/up.sh redis` → `gps-redis` healthy, `docker exec gps-redis redis-cli ping`
 returns `PONG`.
 
+### C2.3 — RabbitMQ for the location pipeline
+
+The queue between ping (publisher) and history (the spec's single consumer). The management UI is
+published at <http://localhost:15672> (`gps` / `gps_pw`) so you can watch depth and throughput while
+load testing.
+
+**Topology is owned by the services, not by this file.** Exchanges, queues, bindings and
+dead-letter arguments are declared by the ping and history services (C7, C9), so the same
+declarations apply in Docker Compose and in Testcontainers tests. Splitting them — definitions file
+here, `@Bean`s there — is how you end up with a `PRECONDITION_FAILED` on a mismatched argument. This
+file only provides the broker and its credentials.
+
+*Verify:* `./scripts/up.sh rabbitmq` → `gps-rabbitmq` healthy;
+`docker exec gps-rabbitmq rabbitmq-diagnostics -q ping` reports `Ping succeeded`.
+
 <!-- next-commit-log-entry -->

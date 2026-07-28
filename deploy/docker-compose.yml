@@ -48,9 +48,29 @@ services:
       start_period: 10s
     networks: [gps-net]
 
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: gps-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-gps}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-gps_pw}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    networks: [gps-net]
+
 volumes:
   mysql-data:
   redis-data:
+  rabbitmq-data:
 
 networks:
   gps-net:
