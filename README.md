@@ -99,7 +99,7 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 | # | Milestone | Commits | Status |
 |---|---|---|---|
 | C1 | Scaffolding + `gps-common` shared library | C1.1 – C1.8 | ✅ done |
-| C2 | Local infrastructure (MySQL, Redis, RabbitMQ, Consul) | C2.1 – C2.4 | ⬜ planned |
+| C2 | Local infrastructure (MySQL, Redis, RabbitMQ, Consul) | C2.1 – C2.4 | 🟡 written, not yet run¹ |
 | C3 | Id service — company signup | C3.1 – C3.6 | ⬜ planned |
 | C4 | Id service — users, tokens, internal authenticate | C4.1 – C4.6 | ⬜ planned |
 | C5 | Kong gateway + `rls_auth` plugin | C5.1 – C5.5 | ⬜ planned |
@@ -112,6 +112,27 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 | C12 | Metadata service — MATCH/EXCEPT/ANY/ALL search | C12.1 – C12.5 | ⬜ planned |
 | C13 | Observability, resilience, OpenAPI | C13.1 – C13.4 | ⬜ planned |
 | C14 | End-to-end suite + load harness | C14.1 – C14.3 | ⬜ planned |
+
+¹ The Compose definitions are validated (`docker compose config`) and the scripts are syntax-checked,
+but the containers have not been started yet — the Docker daemon is not running on the development
+machine. The status becomes ✅ once `./scripts/up.sh` has actually been run green.
+
+---
+
+## Running the local stack
+
+Requires **Docker Desktop running**.
+
+```bash
+./scripts/up.sh
+```
+
+```bash
+./scripts/down.sh
+```
+
+`up.sh` starts every container, waits for its health check, and re-seeds Consul KV. `down.sh -v`
+also discards the MySQL/Redis/RabbitMQ data volumes for a clean slate.
 
 ---
 
@@ -313,5 +334,35 @@ file only provides the broker and its credentials.
 
 *Verify:* `./scripts/up.sh rabbitmq` → `gps-rabbitmq` healthy;
 `docker exec gps-rabbitmq rabbitmq-diagnostics -q ping` reports `Ping succeeded`.
+
+### C2.4 — Consul for configuration and discovery
+
+The last piece of infrastructure. Consul holds service configuration in its KV store and acts as
+the service registry; Kong will later resolve upstreams through its DNS on port 8600.
+
+`scripts/seed.sh` pushes every `deploy/consul/kv/<name>.yml` to `config/<name>/data` — exactly where
+Spring Cloud Consul Config looks for it (`config/application/data` for shared settings,
+`config/<spring.application.name>/data` for per-service overrides). Consul runs in `-dev` mode, so
+its KV is in-memory and `up.sh` re-seeds on every start, which also makes the seed idempotent by
+construction.
+
+**The split that matters:** infrastructure *endpoints* (database host, broker host) come from
+environment variables set by Compose, because they differ between a container and a JVM running on
+your machine. *Behaviour and secrets* (gateway token, `sret`, tuning knobs) come from Consul KV, so
+one set of values serves both. Mixing the two is how you get a service that works in Docker and
+fails on localhost.
+
+This completes the local infrastructure stack:
+
+| Component | Port(s) | Credentials | Notes |
+|---|---|---|---|
+| MySQL | 3306 | `root`/`rootpw`, per-service users | schemas `gps_id`, `gps_history`, `gps_metadata` |
+| Redis | 6379 | — | `noeviction`, AOF on |
+| RabbitMQ | 5672, UI 15672 | `gps`/`gps_pw` | topology declared by the services |
+| Consul | 8500 (UI), 8600 (DNS) | — | `-dev` mode, KV re-seeded by `up.sh` |
+
+*Verify:* `./scripts/up.sh` → four healthy containers and `Seeded 1 key(s)`; the value is visible at
+<http://localhost:8500/ui/dc1/kv/config/application/data> or via
+`curl -s localhost:8500/v1/kv/config/application/data?raw`.
 
 <!-- next-commit-log-entry -->

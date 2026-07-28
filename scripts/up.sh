@@ -16,5 +16,10 @@ fi
 echo "==> Starting containers (waiting for health checks)"
 docker compose -f "${COMPOSE_FILE}" up -d --wait "$@"
 
+# Consul runs in -dev mode, so its KV is empty after every restart.
+if docker compose -f "${COMPOSE_FILE}" ps --services --filter status=running | grep -qx consul; then
+  "${ROOT_DIR}/scripts/seed.sh"
+fi
+
 echo
 docker compose -f "${COMPOSE_FILE}" ps --format "table {{.Service}}\t{{.Status}}\t{{.Ports}}"

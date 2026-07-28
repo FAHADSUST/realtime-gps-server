@@ -67,6 +67,23 @@ services:
       start_period: 30s
     networks: [gps-net]
 
+  consul:
+    image: hashicorp/consul:1.20
+    container_name: gps-consul
+    # -dev keeps config + registrations in memory; scripts/up.sh re-seeds the KV on every start.
+    command: ["agent", "-dev", "-node=gps-consul", "-client=0.0.0.0", "-ui"]
+    ports:
+      - "${CONSUL_HTTP_PORT:-8500}:8500"
+      - "${CONSUL_DNS_PORT:-8600}:8600/tcp"
+      - "${CONSUL_DNS_PORT:-8600}:8600/udp"
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [gps-net]
+
 volumes:
   mysql-data:
   redis-data:

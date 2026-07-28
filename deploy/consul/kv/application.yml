@@ -1,0 +1,46 @@
+# Shared configuration for every GPS service.
+# Seeded into Consul KV at config/application/data by scripts/seed.sh.
+# Per-service overrides live in config/<spring.application.name>/data.
+
+gps:
+  common:
+    gateway:
+      # Shared secret Kong presents on every proxied request. Local development value.
+      token: local-dev-gateway-token
+
+spring:
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+  threads:
+    virtual:
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{correlationId:-},%X{companyId:-},%X{userId:-}]"
+  level:
+    com.rls.gps: INFO
