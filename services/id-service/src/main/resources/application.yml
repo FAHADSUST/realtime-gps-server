@@ -32,6 +32,29 @@ spring:
         health-check-path: /actuator/health
         health-check-interval: 10s
 
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:gps_id}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${MYSQL_USER:gps_id}
+    password: ${MYSQL_PASSWORD:gps_id_pw}
+    hikari:
+      pool-name: id-hikari
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    open-in-view: false
+    # The schema is owned by Flyway; Hibernate only checks that it matches the entities.
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+
 server:
   port: ${SERVER_PORT:8081}
   shutdown: graceful

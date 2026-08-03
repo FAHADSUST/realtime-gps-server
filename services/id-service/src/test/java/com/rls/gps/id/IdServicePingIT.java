@@ -1,9 +1,9 @@
 package com.rls.gps.id;
 
 import com.jayway.jsonpath.JsonPath;
+import com.rls.gps.id.support.AbstractIdServiceIT;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,17 +11,10 @@ import org.springframework.http.ResponseEntity;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The service boots without Consul and answers the health endpoint the spec requires of every
- * service - which it inherits from gps-common rather than declaring itself.
+ * The service boots against a real database - which also proves the Flyway migrations apply and
+ * Hibernate's schema validation passes - and answers the health endpoints.
  */
-@SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {
-                "spring.cloud.consul.enabled=false",
-                "spring.cloud.consul.config.enabled=false",
-                "spring.cloud.consul.discovery.enabled=false"
-        })
-class IdServiceApplicationTest {
+class IdServicePingIT extends AbstractIdServiceIT {
 
     @Autowired
     private TestRestTemplate rest;

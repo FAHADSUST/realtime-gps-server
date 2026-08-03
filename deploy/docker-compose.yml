@@ -93,10 +93,17 @@ services:
     environment:
       CONSUL_HOST: consul
       CONSUL_PORT: 8500
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: gps_id
+      MYSQL_USER: gps_id
+      MYSQL_PASSWORD: gps_id_pw
       SERVER_PORT: 8081
     ports:
       - "${ID_SERVICE_PORT:-8081}:8081"
     depends_on:
+      mysql:
+        condition: service_healthy
       consul:
         condition: service_healthy
     healthcheck:

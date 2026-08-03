@@ -379,4 +379,26 @@ reason — a developer running one service on their laptop shouldn't need the wh
 *Verify:* `./scripts/build.sh -pl services/id-service -am test` → `IdServiceApplicationTest` (2 tests:
 ping identifies the service, actuator health is UP).
 
+### C3.2 — Companies table and persistence
+
+Adds JPA, Flyway and the `companies` table — the tenant every user, location and metadata row will
+hang off.
+
+- **Flyway owns the schema, Hibernate only checks it.** `ddl-auto: validate` means a drift between
+  entity and migration fails at startup instead of silently altering a production table.
+- `app_secret_hash` stores a BCrypt hash; the plaintext secret never reaches the database.
+- The unique index on `name` is case-insensitive by collation (`utf8mb4_0900_ai_ci`), so
+  "Acme Logistics" and "acme logistics" cannot both exist — the database enforces it, not just the
+  service.
+
+**Integration tests** (`*IT`) now run the real application against a real MySQL via Testcontainers.
+They are marked `@Testcontainers(disabledWithoutDocker = true)`, so on a machine with no Docker they
+**skip** rather than fail — `mvn verify` stays honest instead of red for an environmental reason.
+The datasource is wired with `@DynamicPropertySource` rather than `@ServiceConnection` because the
+latter resolves the container image while the test context is built, before JUnit evaluates the skip
+condition, which turns a skip into an error.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `CompanyRepositoryIT` (4) and
+`IdServicePingIT` (2). With Docker running they pass; without it they report as skipped.
+
 <!-- next-commit-log-entry -->
