@@ -365,4 +365,18 @@ This completes the local infrastructure stack:
 <http://localhost:8500/ui/dc1/kv/config/application/data> or via
 `curl -s localhost:8500/v1/kv/config/application/data?raw`.
 
+### C3.1 — Id service skeleton
+
+The first service. It registers with Consul, reads its configuration from Consul KV, ships a
+Dockerfile and a Compose entry, and already answers `GET /api/v1/ping` — inherited from
+`gps-common`, not written again here.
+
+Deliberately **no database yet**: a skeleton without JPA boots without any container, so this commit
+is fully testable on a machine with no Docker, and the persistence layer arrives next with its own
+tests. Consul is configured with `fail-fast: false` and an `optional:` config import for the same
+reason — a developer running one service on their laptop shouldn't need the whole stack.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am test` → `IdServiceApplicationTest` (2 tests:
+ping identifies the service, actuator health is UP).
+
 <!-- next-commit-log-entry -->

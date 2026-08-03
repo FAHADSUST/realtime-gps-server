@@ -84,6 +84,30 @@ services:
       start_period: 10s
     networks: [gps-net]
 
+  id-service:
+    build:
+      context: ../services/id-service
+      dockerfile: Dockerfile
+    image: gps/id-service:local
+    container_name: gps-id-service
+    environment:
+      CONSUL_HOST: consul
+      CONSUL_PORT: 8500
+      SERVER_PORT: 8081
+    ports:
+      - "${ID_SERVICE_PORT:-8081}:8081"
+    depends_on:
+      consul:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
+    restart: unless-stopped
+    networks: [gps-net]
+
 volumes:
   mysql-data:
   redis-data:

@@ -21,6 +21,7 @@
 
     <modules>
         <module>libs/gps-common</module>
+        <module>services/id-service</module>
     </modules>
 
     <properties>

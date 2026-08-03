@@ -1,0 +1,51 @@
+# Infrastructure endpoints come from the environment (they differ between a container and a
+# host JVM); behaviour and secrets come from Consul KV at config/id-service/data.
+
+spring:
+  application:
+    name: id-service
+
+  config:
+    import: "optional:consul:${CONSUL_HOST:localhost}:${CONSUL_PORT:8500}"
+
+  cloud:
+    consul:
+      host: ${CONSUL_HOST:localhost}
+      port: ${CONSUL_PORT:8500}
+      config:
+        enabled: true
+        format: yaml
+        prefix: config
+        default-context: application
+        data-key: data
+        # Start anyway if Consul is unreachable: local runs and tests should not need it.
+        fail-fast: false
+        watch:
+          enabled: true
+          delay: 10000
+      discovery:
+        enabled: true
+        register: true
+        fail-fast: false
+        prefer-ip-address: true
+        instance-id: ${spring.application.name}-${random.value}
+        health-check-path: /actuator/health
+        health-check-interval: 10s
+
+server:
+  port: ${SERVER_PORT:8081}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.rls.gps: INFO
