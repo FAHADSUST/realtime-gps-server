@@ -1,0 +1,7 @@
+# Id service configuration, seeded to Consul KV at config/id-service/data.
+# Local development values - real deployments inject these from a secret store.
+
+gps:
+  id:
+    # Required in the `sret` header to register a company (restricted endpoint).
+    server-secret: local-dev-server-secret

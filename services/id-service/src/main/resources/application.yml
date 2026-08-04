@@ -63,6 +63,8 @@ gps:
   id:
     # Restricted endpoints are served here only; Kong is only ever pointed at server.port.
     internal-port: ${INTERNAL_PORT:9081}
+    # Set in Consul KV (config/id-service/data). Blank means company registration is refused.
+    server-secret: ${SERVER_SECRET:}
 
 management:
   endpoints:

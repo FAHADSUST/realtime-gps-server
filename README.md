@@ -424,4 +424,20 @@ shouldn't confirm that it exists.
 *Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `PortAccessFilterTest` (5 tests,
 no Docker needed).
 
+### C3.4 — The `sret` server-secret guard
+
+The spec requires every company-registration request to carry an `sret` header.
+[`ServerSecretGuard`](services/id-service/src/main/java/com/rls/gps/id/security/ServerSecretGuard.java)
+checks it against `gps.id.server-secret`, seeded into Consul KV at `config/id-service/data`.
+
+Two decisions worth stating:
+
+- **Constant-time comparison** (`MessageDigest.isEqual`). String equality returns as soon as it hits
+  a differing byte, which leaks the length of the matching prefix to anyone who can time requests.
+- **Fails closed.** If no secret is configured the endpoint rejects *everything* with 503 and the
+  service logs an error at startup. The tempting alternative — "no secret configured, so skip the
+  check" — turns a missing config value into an open registration endpoint.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `ServerSecretGuardTest` (4 tests).
+
 <!-- next-commit-log-entry -->
