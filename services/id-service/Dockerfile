@@ -8,7 +8,7 @@ COPY target/id-service.jar /app/app.jar
 RUN chown -R gps:gps /app
 
 USER gps
-EXPOSE 8081
+EXPOSE 8081 9081
 
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+UseG1GC"
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

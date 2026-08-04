@@ -401,4 +401,27 @@ condition, which turns a skip into an error.
 *Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `CompanyRepositoryIT` (4) and
 `IdServicePingIT` (2). With Docker running they pass; without it they report as skipped.
 
+### C3.3 — Restricted endpoints on a separate port
+
+The spec calls `/api/v1/company/signup` and `/api/v1/internal/authenticate` *restricted*: they must
+not be reachable through the gateway. Routing rules alone would enforce that by convention — one
+careless Kong route and a restricted endpoint is public.
+
+Instead the service opens a **second HTTP connector** (`gps.id.internal-port`, default 9081) and
+[`PortAccessFilter`](services/id-service/src/main/java/com/rls/gps/id/web/PortAccessFilter.java)
+splits the surface by the port the request arrived on:
+
+| Path | Public port (8081) | Internal port (9081) |
+|---|---|---|
+| `/api/v1/company/**`, `/api/v1/internal/**` | **404** | served |
+| everything else (`/api/v1/user/**`, …) | served | **404** |
+| `/api/v1/ping`, `/actuator/**` | served | served |
+
+Kong is only ever pointed at 8081, so a restricted endpoint is unreachable through it even if
+someone adds a matching route. Mismatches return **404, not 403** — an endpoint you may not reach
+shouldn't confirm that it exists.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `PortAccessFilterTest` (5 tests,
+no Docker needed).
+
 <!-- next-commit-log-entry -->

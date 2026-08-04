@@ -3,6 +3,7 @@ package com.rls.gps.id.support;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.util.TestSocketUtils;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -32,10 +33,19 @@ public abstract class AbstractIdServiceIT {
     @Container
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0");
 
+    /** Random, so a test run never collides with a locally running id-service on 9081. */
+    protected static final int INTERNAL_PORT = TestSocketUtils.findAvailableTcpPort();
+
     @DynamicPropertySource
-    static void datasourceProperties(DynamicPropertyRegistry registry) {
+    static void testProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
+        registry.add("gps.id.internal-port", () -> INTERNAL_PORT);
+    }
+
+    /** Absolute URL for an endpoint that is only served on the restricted port. */
+    protected static String internalUrl(String path) {
+        return "http://localhost:" + INTERNAL_PORT + path;
     }
 }

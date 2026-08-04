@@ -59,6 +59,11 @@ server:
   port: ${SERVER_PORT:8081}
   shutdown: graceful
 
+gps:
+  id:
+    # Restricted endpoints are served here only; Kong is only ever pointed at server.port.
+    internal-port: ${INTERNAL_PORT:9081}
+
 management:
   endpoints:
     web:
