@@ -55,9 +55,12 @@ integration tests (failsafe, `mvn verify`). Coverage reports land in `target/sit
 
 ```
 realtime-gps/
-├── pom.xml              # parent POM: Java 21, Spring Boot/Cloud BOMs, surefire/failsafe/jacoco
-├── libs/gps-common/     # shared library every service depends on
-└── scripts/build.sh     # builds with JDK 21 regardless of Maven's default JDK
+├── pom.xml                  # parent POM: Java 21, Spring Boot/Cloud BOMs, surefire/failsafe/jacoco
+├── libs/gps-common/         # shared library every service depends on
+├── services/id-service/     # authentication and authorization
+├── deploy/                  # docker-compose stack, MySQL init SQL, Consul KV seed files
+├── scripts/                 # build.sh (JDK 21), up.sh / down.sh / seed.sh (local stack)
+└── docs/images/             # architecture diagram from the original spec
 ```
 
 ---
@@ -100,7 +103,7 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 |---|---|---|---|
 | C1 | Scaffolding + `gps-common` shared library | C1.1 – C1.8 | ✅ done |
 | C2 | Local infrastructure (MySQL, Redis, RabbitMQ, Consul) | C2.1 – C2.4 | 🟡 written, not yet run¹ |
-| C3 | Id service — company signup | C3.1 – C3.6 | ⬜ planned |
+| C3 | Id service — company signup | C3.1 – C3.6 | ✅ done (ITs pending Docker¹) |
 | C4 | Id service — users, tokens, internal authenticate | C4.1 – C4.6 | ⬜ planned |
 | C5 | Kong gateway + `rls_auth` plugin | C5.1 – C5.5 | ⬜ planned |
 | C6 | Ping service — Redis write path | C6.1 – C6.4 | ⬜ planned |
@@ -113,9 +116,10 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 | C13 | Observability, resilience, OpenAPI | C13.1 – C13.4 | ⬜ planned |
 | C14 | End-to-end suite + load harness | C14.1 – C14.3 | ⬜ planned |
 
-¹ The Compose definitions are validated (`docker compose config`) and the scripts are syntax-checked,
-but the containers have not been started yet — the Docker daemon is not running on the development
-machine. The status becomes ✅ once `./scripts/up.sh` has actually been run green.
+¹ Anything needing containers is unverified at runtime: the Docker daemon will not start on this
+machine (its WSL disk image is missing). Compose definitions are validated with `docker compose config`
+and shell scripts are syntax-checked; Testcontainers integration tests are written and compile, but
+report as *skipped* rather than passing. They run for real as soon as Docker works.
 
 ---
 
@@ -172,6 +176,57 @@ Configuration ([`GpsCommonProperties`](libs/gps-common/src/main/java/com/rls/gps
 |---|---|---|
 | `gps.common.gateway.token` | *(empty — check disabled)* | shared secret Kong presents |
 | `gps.common.gateway.skip-paths` | `/actuator/**`, `/api/v1/ping`, `/v3/api-docs/**`, `/swagger-ui/**`, `/error` | paths exempt from the check |
+
+---
+
+## Id service — `services/id-service`
+
+Authentication and authorization: companies (tenants), and later users, tokens and the gateway's
+authenticate hook. Runs on **two ports** — `8081` public (Kong proxies here) and `9081` internal
+(restricted endpoints, never routed by Kong).
+
+### `POST /api/v1/company/signup` — restricted
+
+Registers a tenant. Requires the `sret` header and is served **only on the internal port**.
+
+```bash
+curl -i -X POST http://localhost:9081/api/v1/company/signup \
+  -H 'sret: local-dev-server-secret' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Acme Logistics","contactEmail":"ops@acme.example"}'
+```
+
+```json
+{
+  "companyId": "0a9f…",
+  "name": "Acme Logistics",
+  "contactEmail": "ops@acme.example",
+  "appKey": "ak_8Fq2…",
+  "appSecret": "as_9Xk1…",
+  "status": "ACTIVE",
+  "createdAt": "2026-09-16T10:12:05.123Z"
+}
+```
+
+**`appSecret` is shown exactly once.** Only its BCrypt hash is stored, so a lost secret means
+re-issuing, never recovering.
+
+| Outcome | Status | `code` |
+|---|---|---|
+| Registered | 201 | — |
+| Missing or wrong `sret` | 403 | `invalid_server_secret` |
+| No server secret configured | 503 | `server_secret_not_configured` |
+| Name already taken (case-insensitive) | 409 | `company_already_exists` |
+| Invalid body | 400 | `validation_failed` |
+| Called on the public port | 404 | `not_found` |
+
+### Configuration
+
+| Property | Source | Default |
+|---|---|---|
+| `gps.id.internal-port` | `INTERNAL_PORT` env | `9081` |
+| `gps.id.server-secret` | Consul KV `config/id-service/data` | *(blank → signup refused)* |
+| datasource host/port/credentials | `MYSQL_*` env | `localhost:3306`, `gps_id` |
 
 ---
 
@@ -453,5 +508,25 @@ hashed.
 
 *Verify:* `./scripts/build.sh -pl services/id-service -am test` → `CredentialGeneratorTest` (3 tests,
 including 1000 generated values with no collisions).
+
+### C3.6 — `POST /api/v1/company/signup`
+
+Ties the milestone together: the restricted endpoint validates its body, passes the `sret` header to
+the guard, generates the credential pair, stores the company with a BCrypt-hashed secret, and
+returns the secret once.
+
+Two details worth calling out:
+
+- **The duplicate-name check is belt *and* braces.** `existsByNameIgnoreCase` gives a clean 409, and
+  the unique index still catches the race where two requests pass that check simultaneously — the
+  `DataIntegrityViolationException` is translated into the same 409 rather than a 500.
+- **BCrypt cost 12** rather than the default 10. Company secrets are verified rarely, so the extra
+  cost lands where it's affordable and hurts an offline attacker.
+
+Completes the company-registration milestone: seven integration tests cover the happy path, both
+`sret` failures, duplicates, validation, key uniqueness, and the 404 on the public port.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am verify` → 12 unit tests pass; 13 integration
+tests run with Docker (currently reported as skipped).
 
 <!-- next-commit-log-entry -->

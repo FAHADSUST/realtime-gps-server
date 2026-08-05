@@ -25,10 +25,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         properties = {
                 "spring.cloud.consul.enabled=false",
                 "spring.cloud.consul.config.enabled=false",
-                "spring.cloud.consul.discovery.enabled=false"
+                "spring.cloud.consul.discovery.enabled=false",
+                "gps.id.server-secret=" + AbstractIdServiceIT.SERVER_SECRET
         })
 @Testcontainers(disabledWithoutDocker = true)
 public abstract class AbstractIdServiceIT {
+
+    /** Shared by every IT so they all reuse one Spring context. */
+    public static final String SERVER_SECRET = "test-server-secret";
 
     @Container
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0");
