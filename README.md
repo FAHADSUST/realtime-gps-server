@@ -440,4 +440,18 @@ Two decisions worth stating:
 
 *Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `ServerSecretGuardTest` (4 tests).
 
+### C3.5 — App key and secret generation
+
+[`CredentialGenerator`](services/id-service/src/main/java/com/rls/gps/id/security/CredentialGenerator.java)
+mints the credential pair a company uses to register its users: `ak_…` (18 random bytes) as the
+public identifier, `as_…` (32 random bytes) as the secret — `SecureRandom`, base64url, no padding.
+
+The prefixes are not decoration: they make a leaked credential identifiable at a glance in a log or
+a support ticket, and they make "you pasted the key where the secret goes" a one-look diagnosis.
+Secret length is capped below BCrypt's 72-byte truncation limit, so the whole secret is actually
+hashed.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am test` → `CredentialGeneratorTest` (3 tests,
+including 1000 generated values with no collisions).
+
 <!-- next-commit-log-entry -->
