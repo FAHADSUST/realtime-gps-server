@@ -6,7 +6,6 @@ import java.util.Map;
 import com.jayway.jsonpath.JsonPath;
 import com.rls.gps.common.web.GpsHeaders;
 import com.rls.gps.id.support.AbstractIdServiceIT;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -30,17 +29,9 @@ class CompanySignupIT extends AbstractIdServiceIT {
     private TestRestTemplate publicRest;
 
     @Autowired
-    private CompanyRepository companyRepository;
-
-    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private final TestRestTemplate internalRest = new TestRestTemplate();
-
-    @BeforeEach
-    void clean() {
-        companyRepository.deleteAll();
-    }
 
     @Test
     void registersACompanyAndReturnsItsCredentialsOnce() {

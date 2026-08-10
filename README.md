@@ -529,4 +529,24 @@ Completes the company-registration milestone: seven integration tests cover the 
 *Verify:* `./scripts/build.sh -pl services/id-service -am verify` → 12 unit tests pass; 13 integration
 tests run with Docker (currently reported as skipped).
 
+### C4.1 — Users table, scoped to a company
+
+`V2__users.sql` plus the `User` entity and repository.
+
+- **Usernames are unique per company, not globally** (`UNIQUE (company_id, username)`). Two customers
+  must both be able to have a `driver-1` without discovering each other's existence — a global
+  unique index would leak that and cause support tickets nobody can fix.
+- **A foreign key to `companies`**, so a user cannot outlive its tenant.
+- **Every finder is company-scoped.** There is deliberately no `findById(userId)` in use: the
+  repository exposes `findByIdAndCompanyId`, so a bug that loses the tenant filter fails to compile
+  rather than quietly returning another customer's user.
+- The company is stored as an id, not a JPA association — they are separate aggregates, and the id
+  is exactly what the platform passes around in headers.
+
+Test cleanup moved into `AbstractIdServiceIT`: users are deleted before companies, since the reverse
+order trips the new foreign key.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `UserRepositoryIT` (5 tests, with
+Docker).
+
 <!-- next-commit-log-entry -->

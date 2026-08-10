@@ -1,5 +1,9 @@
 package com.rls.gps.id.support;
 
+import com.rls.gps.id.company.CompanyRepository;
+import com.rls.gps.id.user.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -46,6 +50,22 @@ public abstract class AbstractIdServiceIT {
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
         registry.add("gps.id.internal-port", () -> INTERNAL_PORT);
+    }
+
+    @Autowired
+    protected UserRepository userRepository;
+
+    @Autowired
+    protected CompanyRepository companyRepository;
+
+    /**
+     * Every test starts from an empty database. Users go first: they reference companies, so the
+     * reverse order would trip the foreign key.
+     */
+    @BeforeEach
+    void resetDatabase() {
+        userRepository.deleteAllInBatch();
+        companyRepository.deleteAllInBatch();
     }
 
     /** Absolute URL for an endpoint that is only served on the restricted port. */
