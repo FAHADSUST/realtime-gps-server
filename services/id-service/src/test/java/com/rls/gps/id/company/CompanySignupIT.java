@@ -8,7 +8,6 @@ import com.rls.gps.common.web.GpsHeaders;
 import com.rls.gps.id.support.AbstractIdServiceIT;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -24,14 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class CompanySignupIT extends AbstractIdServiceIT {
 
-    /** Bound to the public (gateway-facing) port. */
-    @Autowired
-    private TestRestTemplate publicRest;
-
     @Autowired
     private PasswordEncoder passwordEncoder;
-
-    private final TestRestTemplate internalRest = new TestRestTemplate();
 
     @Test
     void registersACompanyAndReturnsItsCredentialsOnce() {
@@ -110,7 +103,7 @@ class CompanySignupIT extends AbstractIdServiceIT {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set(GpsHeaders.SERVER_SECRET, SERVER_SECRET);
 
-        ResponseEntity<String> response = publicRest.postForEntity("/api/v1/company/signup",
+        ResponseEntity<String> response = rest.postForEntity("/api/v1/company/signup",
                 new HttpEntity<>(Map.of("name", "Sneaky Inc"), headers), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);

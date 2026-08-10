@@ -1,10 +1,20 @@
 package com.rls.gps.id.support;
 
+import java.util.Map;
+
+import com.jayway.jsonpath.JsonPath;
+import com.rls.gps.common.web.GpsHeaders;
 import com.rls.gps.id.company.CompanyRepository;
 import com.rls.gps.id.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.util.TestSocketUtils;
@@ -58,6 +68,13 @@ public abstract class AbstractIdServiceIT {
     @Autowired
     protected CompanyRepository companyRepository;
 
+    /** Bound to the public port - what Kong would proxy to. */
+    @Autowired
+    protected TestRestTemplate rest;
+
+    /** Absolute URLs only; used for the restricted port. */
+    protected final TestRestTemplate internalRest = new TestRestTemplate();
+
     /**
      * Every test starts from an empty database. Users go first: they reference companies, so the
      * reverse order would trip the foreign key.
@@ -71,5 +88,27 @@ public abstract class AbstractIdServiceIT {
     /** Absolute URL for an endpoint that is only served on the restricted port. */
     protected static String internalUrl(String path) {
         return "http://localhost:" + INTERNAL_PORT + path;
+    }
+
+    /** The credentials a company is issued at signup. The secret exists only here and in the response. */
+    public record RegisteredCompany(String companyId, String appKey, String appSecret) {
+    }
+
+    /** Registers a company through the real restricted endpoint, as an operator would. */
+    protected RegisteredCompany registerCompany(String name) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(GpsHeaders.SERVER_SECRET, SERVER_SECRET);
+
+        ResponseEntity<String> response = internalRest.postForEntity(internalUrl("/api/v1/company/signup"),
+                new HttpEntity<>(Map.of("name", name), headers), String.class);
+        if (response.getStatusCode() != HttpStatus.CREATED) {
+            throw new IllegalStateException("company signup failed: " + response.getStatusCode()
+                    + " " + response.getBody());
+        }
+
+        String body = response.getBody();
+        return new RegisteredCompany(JsonPath.read(body, "$.companyId"), JsonPath.read(body, "$.appKey"),
+                JsonPath.read(body, "$.appSecret"));
     }
 }

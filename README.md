@@ -549,4 +549,33 @@ order trips the new foreign key.
 *Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `UserRepositoryIT` (5 tests, with
 Docker).
 
+### C4.2 — `POST /api/v1/user/signup`
+
+The first public endpoint. It cannot require a user token — there is no user yet — so it
+authenticates with the **company's** app key and secret, which Kong will exempt from `rls_auth`.
+
+```bash
+curl -i -X POST http://localhost:8081/api/v1/user/signup \
+  -H 'Content-Type: application/json' \
+  -d '{"appKey":"ak_…","appSecret":"as_…","username":"driver-1","password":"s3cret-password","displayName":"Driver One"}'
+```
+
+- **Credentials go in the body, not in headers.** `X-App-Key` is an identity header the gateway owns
+  and overwrites, so a client cannot use it to present credentials without creating an ambiguity
+  about who set it.
+- **An unknown app key and a wrong secret return the identical 401**, and the unknown-key path still
+  performs a BCrypt comparison against a decoy hash. Otherwise the status code or the response time
+  would tell an attacker which app keys exist.
+- Duplicate usernames are caught by the check *and* the unique index, like company names.
+
+| Outcome | Status | `code` |
+|---|---|---|
+| Created | 201 | — |
+| Unknown app key or wrong secret | 401 | `invalid_company_credentials` |
+| Company suspended | 403 | `company_suspended` |
+| Username taken in that company | 409 | `user_already_exists` |
+| Invalid body | 400 | `validation_failed` |
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `UserSignupIT` (8 tests, with Docker).
+
 <!-- next-commit-log-entry -->

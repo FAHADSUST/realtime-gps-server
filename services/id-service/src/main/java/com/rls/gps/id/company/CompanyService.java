@@ -2,7 +2,9 @@ package com.rls.gps.id.company;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Optional;
 
+import com.rls.gps.common.error.ApiException;
 import com.rls.gps.common.error.ApiExceptions;
 import com.rls.gps.id.company.dto.CompanySignupRequest;
 import com.rls.gps.id.company.dto.CompanySignupResponse;
@@ -24,6 +26,9 @@ public class CompanyService {
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
 
+    /** Hashed once at startup so a lookup miss can still spend a comparable amount of time. */
+    private final String decoyHash;
+
     public CompanyService(CompanyRepository repository,
                           CredentialGenerator credentialGenerator,
                           PasswordEncoder passwordEncoder,
@@ -32,6 +37,7 @@ public class CompanyService {
         this.credentialGenerator = credentialGenerator;
         this.passwordEncoder = passwordEncoder;
         this.clock = clock;
+        this.decoyHash = passwordEncoder.encode(credentialGenerator.appSecret());
     }
 
     /**
@@ -72,5 +78,35 @@ public class CompanyService {
             throw ApiExceptions.forbidden("company_suspended", "This company is suspended");
         }
         return company;
+    }
+
+    /**
+     * Verifies an app key and secret pair.
+     *
+     * <p>An unknown key and a wrong secret produce the same error, and an unknown key still pays for
+     * a BCrypt comparison: otherwise the status code or the response time would tell an attacker
+     * which app keys exist.
+     */
+    @Transactional(readOnly = true)
+    public Company authenticate(String appKey, String appSecret) {
+        Optional<Company> found = repository.findByAppKey(appKey);
+        if (found.isEmpty()) {
+            passwordEncoder.matches(appSecret, decoyHash);
+            throw invalidCredentials();
+        }
+
+        Company company = found.get();
+        if (!passwordEncoder.matches(appSecret, company.getAppSecretHash())) {
+            log.warn("company_credentials_rejected appKey={}", appKey);
+            throw invalidCredentials();
+        }
+        if (!company.isActive()) {
+            throw ApiExceptions.forbidden("company_suspended", "This company is suspended");
+        }
+        return company;
+    }
+
+    private static ApiException invalidCredentials() {
+        return ApiExceptions.unauthorized("invalid_company_credentials", "Unknown app key or secret");
     }
 }
