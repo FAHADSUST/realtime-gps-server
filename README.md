@@ -607,4 +607,40 @@ Spring Boot BOM manages neither JJWT nor Nimbus).
 trip, expiry either side of the boundary, foreign key, tampered payload, `alg: none`, wrong issuer,
 garbage input).
 
+### C4.4 — `POST /api/v1/auth/token`
+
+Exchanges user credentials for an access token. **This endpoint is not in the original
+specification** — the spec describes how the gateway validates a token but never how a client gets
+one, and without it nothing else in the platform is callable.
+
+```bash
+curl -s -X POST http://localhost:8081/api/v1/auth/token \
+  -H 'Content-Type: application/json' \
+  -d '{"appKey":"ak_…","username":"driver-1","password":"s3cret-password"}'
+```
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9…",
+  "tokenType": "Bearer",
+  "expiresIn": 3600,
+  "expiresAt": "2026-09-16T11:12:05Z",
+  "companyId": "0a9f…",
+  "userId": "7c31…"
+}
+```
+
+- **The app secret is not required here.** This call comes from end-user clients — phones, browsers —
+  which cannot keep a secret. The app key identifies *which company* the username belongs to (they're
+  only unique per company); the password is the credential.
+- **Wrong app key, unknown username and wrong password return one identical 401.** Distinguishing
+  them would turn this into a directory of which companies and users exist.
+- The timing-safe comparison moved into
+  [`SecretVerifier`](services/id-service/src/main/java/com/rls/gps/id/security/SecretVerifier.java),
+  now shared with company authentication: a lookup miss is still charged for a BCrypt round, so
+  "no such user" and "wrong password" cost the same.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `TokenEndpointIT` (8 tests,
+including cross-company login and a disabled user).
+
 <!-- next-commit-log-entry -->

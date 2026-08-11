@@ -2,13 +2,13 @@ package com.rls.gps.id.company;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Optional;
 
 import com.rls.gps.common.error.ApiException;
 import com.rls.gps.common.error.ApiExceptions;
 import com.rls.gps.id.company.dto.CompanySignupRequest;
 import com.rls.gps.id.company.dto.CompanySignupResponse;
 import com.rls.gps.id.security.CredentialGenerator;
+import com.rls.gps.id.security.SecretVerifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -24,20 +24,19 @@ public class CompanyService {
     private final CompanyRepository repository;
     private final CredentialGenerator credentialGenerator;
     private final PasswordEncoder passwordEncoder;
+    private final SecretVerifier secretVerifier;
     private final Clock clock;
-
-    /** Hashed once at startup so a lookup miss can still spend a comparable amount of time. */
-    private final String decoyHash;
 
     public CompanyService(CompanyRepository repository,
                           CredentialGenerator credentialGenerator,
                           PasswordEncoder passwordEncoder,
+                          SecretVerifier secretVerifier,
                           Clock clock) {
         this.repository = repository;
         this.credentialGenerator = credentialGenerator;
         this.passwordEncoder = passwordEncoder;
+        this.secretVerifier = secretVerifier;
         this.clock = clock;
-        this.decoyHash = passwordEncoder.encode(credentialGenerator.appSecret());
     }
 
     /**
@@ -81,22 +80,14 @@ public class CompanyService {
     }
 
     /**
-     * Verifies an app key and secret pair.
-     *
-     * <p>An unknown key and a wrong secret produce the same error, and an unknown key still pays for
-     * a BCrypt comparison: otherwise the status code or the response time would tell an attacker
-     * which app keys exist.
+     * Verifies an app key and secret pair. An unknown key and a wrong secret are indistinguishable
+     * to the caller - same status, same code, same cost (see {@link SecretVerifier}).
      */
     @Transactional(readOnly = true)
     public Company authenticate(String appKey, String appSecret) {
-        Optional<Company> found = repository.findByAppKey(appKey);
-        if (found.isEmpty()) {
-            passwordEncoder.matches(appSecret, decoyHash);
-            throw invalidCredentials();
-        }
+        Company company = repository.findByAppKey(appKey).orElse(null);
 
-        Company company = found.get();
-        if (!passwordEncoder.matches(appSecret, company.getAppSecretHash())) {
+        if (!secretVerifier.matches(appSecret, company == null ? null : company.getAppSecretHash())) {
             log.warn("company_credentials_rejected appKey={}", appKey);
             throw invalidCredentials();
         }

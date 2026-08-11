@@ -70,6 +70,12 @@ public class User {
                 UserStatus.ACTIVE, now, now);
     }
 
+    /** Blocks the user from obtaining new tokens. Existing tokens stay valid until they expire. */
+    public void disable(Instant now) {
+        this.status = UserStatus.DISABLED;
+        this.updatedAt = now;
+    }
+
     public String getId() {
         return id;
     }

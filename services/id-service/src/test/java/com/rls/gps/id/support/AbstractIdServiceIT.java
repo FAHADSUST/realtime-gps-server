@@ -94,6 +94,37 @@ public abstract class AbstractIdServiceIT {
     public record RegisteredCompany(String companyId, String appKey, String appSecret) {
     }
 
+    /** Registers a user through the public signup endpoint and returns its id. */
+    protected String registerUser(RegisteredCompany company, String username, String password) {
+        Map<String, String> body = Map.of(
+                "appKey", company.appKey(),
+                "appSecret", company.appSecret(),
+                "username", username,
+                "password", password);
+
+        ResponseEntity<String> response = rest.postForEntity("/api/v1/user/signup", body, String.class);
+        if (response.getStatusCode() != HttpStatus.CREATED) {
+            throw new IllegalStateException("user signup failed: " + response.getStatusCode()
+                    + " " + response.getBody());
+        }
+        return JsonPath.read(response.getBody(), "$.userId");
+    }
+
+    /** Logs a user in and returns the raw access token. */
+    protected String obtainToken(RegisteredCompany company, String username, String password) {
+        Map<String, String> body = Map.of(
+                "appKey", company.appKey(),
+                "username", username,
+                "password", password);
+
+        ResponseEntity<String> response = rest.postForEntity("/api/v1/auth/token", body, String.class);
+        if (response.getStatusCode() != HttpStatus.OK) {
+            throw new IllegalStateException("token request failed: " + response.getStatusCode()
+                    + " " + response.getBody());
+        }
+        return JsonPath.read(response.getBody(), "$.accessToken");
+    }
+
     /** Registers a company through the real restricted endpoint, as an operator would. */
     protected RegisteredCompany registerCompany(String name) {
         HttpHeaders headers = new HttpHeaders();
