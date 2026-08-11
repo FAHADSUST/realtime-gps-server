@@ -48,6 +48,7 @@ class ServerSecretGuardTest {
     }
 
     private static ServerSecretGuard guardWith(String secret) {
-        return new ServerSecretGuard(new IdProperties(9081, secret));
+        return new ServerSecretGuard(new IdProperties(9081, secret,
+                new IdProperties.Jwt(null, "rls-id-service", java.time.Duration.ofHours(1))));
     }
 }

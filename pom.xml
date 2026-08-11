@@ -33,6 +33,8 @@
         <!-- Release train matched to Spring Boot 3.5.x -->
         <spring-cloud.version>2025.0.3</spring-cloud.version>
         <jacoco.version>0.8.13</jacoco.version>
+        <!-- Not managed by the Spring Boot BOM, so pinned here for every module. -->
+        <jjwt.version>0.12.7</jjwt.version>
     </properties>
 
     <dependencyManagement>
@@ -48,6 +50,21 @@
                 <groupId>com.rls.gps</groupId>
                 <artifactId>gps-common</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

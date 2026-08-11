@@ -578,4 +578,33 @@ curl -i -X POST http://localhost:8081/api/v1/user/signup \
 
 *Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `UserSignupIT` (8 tests, with Docker).
 
+### C4.3 — Access tokens (issue and verify)
+
+[`TokenService`](services/id-service/src/main/java/com/rls/gps/id/token/TokenService.java) mints and
+checks the JWTs clients present to the gateway. HS256 via JJWT 0.12.7 (pinned in the parent POM — the
+Spring Boot BOM manages neither JJWT nor Nimbus).
+
+| Claim | Meaning |
+|---|---|
+| `sub` | user id |
+| `cid` | company id |
+| `ak` | app key |
+| `iss` | `rls-id-service`, required on verification |
+| `iat` / `exp` / `jti` | issued-at, expiry (default 1 h), unique token id |
+
+- **HS256, not RS256.** The Id service is both the only issuer and the only verifier — the gateway
+  asks it rather than checking signatures itself — so a shared secret avoids handing every component
+  a key to fetch and rotate.
+- **Claims stay minimal.** Anything richer (roles, company name) can go stale between issue and use.
+- **Unsigned tokens cannot slip through.** `parseSignedClaims` rejects `alg: none` outright, and
+  there's a test that forges exactly that.
+- **Verification takes an injected clock**, so expiry is tested by moving time rather than sleeping.
+- **No default signing key.** If `gps.id.jwt.secret` is unset the service generates a random one and
+  logs a loud warning; a shipped default key would let anyone mint valid tokens. A configured secret
+  shorter than 32 bytes fails startup instead of silently weakening HS256.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am test` → `TokenServiceTest` (9 tests: round
+trip, expiry either side of the boundary, foreign key, tampered payload, `alg: none`, wrong issuer,
+garbage input).
+
 <!-- next-commit-log-entry -->

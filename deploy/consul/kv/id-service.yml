@@ -5,3 +5,8 @@ gps:
   id:
     # Required in the `sret` header to register a company (restricted endpoint).
     server-secret: local-dev-server-secret
+    jwt:
+      # At least 32 bytes: HS256 needs a key no shorter than its own output.
+      secret: local-dev-jwt-signing-secret-change-me!
+      issuer: rls-id-service
+      ttl: 1h

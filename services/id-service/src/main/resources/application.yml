@@ -65,6 +65,12 @@ gps:
     internal-port: ${INTERNAL_PORT:9081}
     # Set in Consul KV (config/id-service/data). Blank means company registration is refused.
     server-secret: ${SERVER_SECRET:}
+    jwt:
+      # Blank generates a random key at startup: fine for one local instance, useless across a
+      # restart or a second replica. Always configure it in Consul KV for a real deployment.
+      secret: ${JWT_SECRET:}
+      issuer: rls-id-service
+      ttl: 1h
 
 management:
   endpoints:
