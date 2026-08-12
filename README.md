@@ -104,7 +104,7 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 | C1 | Scaffolding + `gps-common` shared library | C1.1 – C1.8 | ✅ done |
 | C2 | Local infrastructure (MySQL, Redis, RabbitMQ, Consul) | C2.1 – C2.4 | 🟡 written, not yet run¹ |
 | C3 | Id service — company signup | C3.1 – C3.6 | ✅ done (ITs pending Docker¹) |
-| C4 | Id service — users, tokens, internal authenticate | C4.1 – C4.6 | ⬜ planned |
+| C4 | Id service — users, tokens, internal authenticate | C4.1 – C4.6 | ✅ done (ITs pending Docker¹) |
 | C5 | Kong gateway + `rls_auth` plugin | C5.1 – C5.5 | ⬜ planned |
 | C6 | Ping service — Redis write path | C6.1 – C6.4 | ⬜ planned |
 | C7 | Ping service — buffer → RabbitMQ bulk publish | C7.1 – C7.4 | ⬜ planned |
@@ -220,12 +220,69 @@ re-issuing, never recovering.
 | Invalid body | 400 | `validation_failed` |
 | Called on the public port | 404 | `not_found` |
 
+### `POST /api/v1/user/signup` — public
+
+Registers a user for a company, authenticated with that company's app key **and secret** in the body.
+Kong exempts this route from `rls_auth` (there is no user yet to authenticate).
+
+```bash
+curl -s -X POST http://localhost:8081/api/v1/user/signup -H 'Content-Type: application/json' \
+  -d '{"appKey":"ak_…","appSecret":"as_…","username":"driver-1","password":"s3cret-password"}'
+```
+
+### `POST /api/v1/auth/token` — public *(added; see Deviations)*
+
+Exchanges `appKey` + `username` + `password` for a Bearer token. No app secret: the caller is an
+end-user client that cannot keep one.
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8081/api/v1/auth/token -H 'Content-Type: application/json' \
+  -d '{"appKey":"ak_…","username":"driver-1","password":"s3cret-password"}' | jq -r .accessToken)
+```
+
+### `GET /api/v1/user/resolve` — public
+
+Lists the caller's company users, paged (`page`, `size` ≤ 200), ordered by username. The company
+comes from the **verified identity**, never the query string, so no app key can read another
+tenant's users; an `appKey` parameter is accepted (the spec names it) but only checked for agreement
+with the caller.
+
+```bash
+curl -s "http://localhost:8000/api/v1/user/resolve?page=0&size=50" -H "Authorization: Bearer $TOKEN"
+```
+
+### `GET /api/v1/internal/authenticate` — restricted
+
+The gateway's hook. Returns 200 with `X-Company-Id` / `X-User-Id` / `X-App-Key` response headers and
+an `X-Token-Expires-In` that bounds how long the plugin may cache the decision.
+
+### Error codes
+
+| Endpoint | Outcome | Status | `code` |
+|---|---|---|---|
+| company signup | missing/wrong `sret` | 403 | `invalid_server_secret` |
+| company signup | no server secret configured | 503 | `server_secret_not_configured` |
+| company signup | name taken | 409 | `company_already_exists` |
+| user signup | bad app key **or** secret | 401 | `invalid_company_credentials` |
+| user signup | username taken in that company | 409 | `user_already_exists` |
+| auth token | bad app key, username **or** password | 401 | `invalid_credentials` |
+| auth token / authenticate | user disabled | 403 | `user_disabled` |
+| any | company suspended | 403 | `company_suspended` |
+| authenticate | no/!Bearer header | 401 | `token_missing` |
+| authenticate | bad signature, tampered, `alg:none`, unknown user | 401 | `token_invalid` |
+| authenticate | expired | 401 | `token_expired` |
+| resolve | app key of another company | 403 | `app_key_mismatch` |
+| resolve | called without identity | 401 | `identity_required` |
+| any | invalid body or parameters | 400 | `validation_failed` |
+
 ### Configuration
 
 | Property | Source | Default |
 |---|---|---|
 | `gps.id.internal-port` | `INTERNAL_PORT` env | `9081` |
 | `gps.id.server-secret` | Consul KV `config/id-service/data` | *(blank → signup refused)* |
+| `gps.id.jwt.secret` | Consul KV `config/id-service/data` | *(blank → random key + warning)* |
+| `gps.id.jwt.issuer` / `.ttl` | Consul KV | `rls-id-service` / `1h` |
 | datasource host/port/credentials | `MYSQL_*` env | `localhost:3306`, `gps_id` |
 
 ---
@@ -668,5 +725,24 @@ as a body for anyone debugging with curl.
 *Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `InternalAuthenticateIT` (7 tests:
 headers and body, case-insensitive scheme, malformed headers, tampered token, disabled user, deleted
 user, and the 404 on the public port).
+
+### C4.6 — `GET /api/v1/user/resolve`
+
+Lists a company's users, paged and ordered by username — the spec's "retrieve all users for a
+company/AppKey".
+
+- **The company comes from the verified identity, not from the query string.** The spec phrases this
+  as resolving *by app key*, which read literally would let anyone who learns an app key enumerate
+  that company's users. The `appKey` parameter is still accepted, but it is only checked for
+  agreement with the caller; a mismatch is a 403 rather than a cross-tenant read.
+- **The response shape belongs to this service**, not Spring's `Page` — whose JSON structure has
+  changed between Spring versions and would drag clients along with it.
+- `size` is capped at 200 so one request cannot ask for an unbounded result set.
+
+Completes the Id service: companies, users, tokens, and the gateway's authenticate hook.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `UserResolveIT` (7 tests: scoping,
+paging past the end, app-key mismatch, missing identity, oversized page, no password hashes in the
+payload).
 
 <!-- next-commit-log-entry -->

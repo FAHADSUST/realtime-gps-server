@@ -4,11 +4,13 @@ import java.time.Clock;
 
 import com.rls.gps.common.error.ApiExceptions;
 import com.rls.gps.id.company.Company;
+import com.rls.gps.id.user.dto.PagedUsersResponse;
 import com.rls.gps.id.user.dto.UserResponse;
 import com.rls.gps.id.user.dto.UserSignupRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +50,13 @@ public class UserService {
         log.info("user_registered companyId={} userId={} username={}",
                 company.getId(), user.getId(), username);
         return UserResponse.from(user);
+    }
+
+    /** Lists one company's users. The company id comes from the verified identity, never from input. */
+    @Transactional(readOnly = true)
+    public PagedUsersResponse resolve(String companyId, int page, int size) {
+        return PagedUsersResponse.from(
+                repository.findByCompanyIdOrderByUsernameAsc(companyId, PageRequest.of(page, size)));
     }
 
     private static com.rls.gps.common.error.ApiException usernameTaken(String username) {
