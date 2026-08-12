@@ -643,4 +643,30 @@ curl -s -X POST http://localhost:8081/api/v1/auth/token \
 *Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `TokenEndpointIT` (8 tests,
 including cross-company login and a disabled user).
 
+### C4.5 — `GET /api/v1/internal/authenticate`
+
+The hook Kong's `rls_auth` plugin will call for every proxied request. Restricted to the internal
+port; takes the client's original `Authorization: Bearer …` header.
+
+```bash
+curl -i http://localhost:9081/api/v1/internal/authenticate -H "Authorization: Bearer $TOKEN"
+```
+
+On success it answers 200 with the identity **as response headers** — `X-Company-Id`, `X-User-Id`,
+`X-App-Key` — which is exactly what the plugin copies onto the upstream request, plus the same values
+as a body for anyone debugging with curl.
+
+- **It re-checks the database, not just the signature.** A token is valid until it expires, so
+  signature-only verification would keep a disabled or deleted user working for up to an hour. The
+  cost is one query per token, not per request, because of the next point.
+- **`X-Token-Expires-In` bounds the gateway's cache.** The plugin can cache a decision for exactly
+  the remaining life of the token and no longer, which is what makes the database re-check
+  affordable.
+- A deleted user yields `token_invalid`, not `user_not_found` — the caller learns their token is
+  unusable, nothing more.
+
+*Verify:* `./scripts/build.sh -pl services/id-service -am verify` → `InternalAuthenticateIT` (7 tests:
+headers and body, case-insensitive scheme, malformed headers, tampered token, disabled user, deleted
+user, and the 404 on the public port).
+
 <!-- next-commit-log-entry -->
