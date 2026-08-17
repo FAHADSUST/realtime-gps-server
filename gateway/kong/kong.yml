@@ -1,0 +1,66 @@
+# Kong declarative configuration (DB-less mode).
+#
+# This file is the whole gateway: every service Kong can reach, every route it will accept, and the
+# plugins applied to them. Nothing is configured through the Admin API at runtime, so the routing
+# surface is reviewable in a pull request.
+#
+# Two rules hold for every edit:
+#   1. No route may expose /api/v1/company/** or /api/v1/internal/**. Those are restricted endpoints
+#      served only on each service's internal port. KongDeclarativeConfigTest enforces this.
+#   2. Identity headers are removed from every incoming request before anything else runs. Only
+#      rls_auth may set them, from values the Id service verified.
+
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: id-service
+    # Resolved by Docker DNS inside the compose network. See "Upstream resolution" in the README for
+    # the Consul DNS alternative used by the original AWS deployment.
+    url: http://id-service:8081
+    connect_timeout: 2000
+    read_timeout: 10000
+    write_timeout: 10000
+    retries: 1
+    routes:
+      # Public: a client has no user yet, so this authenticates with the company's own credentials.
+      - name: user-signup
+        paths:
+          - /api/v1/user/signup
+        methods:
+          - POST
+        strip_path: false
+
+      # Public: this is where a token comes from, so it cannot require one.
+      - name: auth-token
+        paths:
+          - /api/v1/auth/token
+        methods:
+          - POST
+        strip_path: false
+
+plugins:
+  # The trust boundary. A client must never be able to assert who it is, so these headers are
+  # stripped from every request regardless of route; rls_auth re-adds them once verified.
+  #
+  # X-Gateway-Token proves to the services that a request came through Kong. It must match
+  # gps.common.gateway.token in Consul KV (config/application/data). Local development value; a real
+  # deployment templates this from a secret store.
+  - name: request-transformer
+    config:
+      remove:
+        headers:
+          - X-Company-Id
+          - X-User-Id
+          - X-App-Key
+          - X-Gateway-Token
+      add:
+        headers:
+          - "X-Gateway-Token:local-dev-gateway-token"
+
+  # One id per request, echoed to the client and carried into every service log line.
+  - name: correlation-id
+    config:
+      header_name: X-Correlation-Id
+      generator: uuid
+      echo_downstream: true

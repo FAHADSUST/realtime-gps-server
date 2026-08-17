@@ -745,4 +745,33 @@ Completes the Id service: companies, users, tokens, and the gateway's authentica
 paging past the end, app-key mismatch, missing identity, oversized page, no password hashes in the
 payload).
 
+### C5.1 — Kong in DB-less mode with the public routes
+
+The gateway arrives as a container plus one file,
+[`gateway/kong/kong.yml`](gateway/kong/kong.yml). DB-less/declarative means the entire routing
+surface is reviewable in a pull request instead of living in a database that drifts.
+
+Two global plugins establish the trust boundary before any route logic runs:
+
+- **`request-transformer`** removes `X-Company-Id`, `X-User-Id`, `X-App-Key` and `X-Gateway-Token`
+  from *every* incoming request, then adds the gateway token. A client therefore cannot assert who
+  it is, and a service can tell a proxied request from a direct one.
+- **`correlation-id`** generates `X-Correlation-Id` and echoes it downstream, which is what the
+  services' `CorrelationIdFilter` has been picking up since C1.5.
+
+Routes so far are the two that cannot require a token: `POST /api/v1/user/signup` (creates the user)
+and `POST /api/v1/auth/token` (issues the token).
+
+**A Lua plugin only exists at runtime, so the config gets a test instead.**
+[`KongDeclarativeConfigTest`](gateway/kong/src/test/java/com/rls/gps/gateway/KongDeclarativeConfigTest.java)
+parses `kong.yml` and fails the build if a route ever exposes `/api/v1/company/**` or
+`/api/v1/internal/**`, if identity headers stop being stripped, if the gateway token stops being
+added, or if a route strips the `/api/v1` prefix the services expect. That is the property most
+likely to be broken by a hurried edit, and it is data, so it can be checked without Docker.
+
+The Admin API is published on `127.0.0.1:8001` only — it can rewrite the whole gateway.
+
+*Verify:* `./scripts/build.sh -pl gateway/kong test` → 9 tests;
+`docker compose -f deploy/docker-compose.yml config -q` accepts the stack.
+
 <!-- next-commit-log-entry -->
