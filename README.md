@@ -774,4 +774,36 @@ The Admin API is published on `127.0.0.1:8001` only — it can rewrite the whole
 *Verify:* `./scripts/build.sh -pl gateway/kong test` → 9 tests;
 `docker compose -f deploy/docker-compose.yml config -q` accepts the stack.
 
+### C5.2 — The `rls_auth` plugin
+
+The custom Kong plugin from the original design, rebuilt:
+[`handler.lua`](gateway/kong/plugins/rls_auth/handler.lua) +
+[`schema.lua`](gateway/kong/plugins/rls_auth/schema.lua). On every protected route it takes the
+client's `Authorization` header, asks the Id service's restricted port whether it is valid, and puts
+the verified `X-Company-Id` / `X-User-Id` / `X-App-Key` on the upstream request. The first protected
+route — `GET /api/v1/user/resolve` — is now wired up.
+
+Four things it gets right on purpose:
+
+- **Plugin priority 800, below `request-transformer`'s 801.** The stripping plugin must run *first*.
+  Reversed, `rls_auth` would set the verified identity and `request-transformer` would immediately
+  remove it — an ordering bug that fails as a confusing 401 rather than anything obvious.
+- **An unreachable Id service is a 503, never a 401.** "I cannot check" and "I checked and you are
+  not allowed" are different answers; conflating them turns an outage into a wave of apparently
+  failed logins.
+- **A 200 without identity headers fails closed.** If the Id service answers 200 but sends no
+  identity, the plugin returns 503 rather than forwarding a request with no identity at all.
+- **Rejections are passed through verbatim.** The Id service already produced an RFC 7807 body with
+  a stable `code`, so the client sees exactly why (`token_expired` vs `token_invalid` vs
+  `user_disabled`) instead of a gateway-flavoured guess.
+
+The config test grew an invariant that matters as ping, history and metadata routes arrive:
+**every route not on an explicit public allowlist must apply `rls_auth`.** Forgetting authentication
+on a new route now fails the build.
+
+⚠️ The Lua itself is **unexecuted** — no Docker on this machine, and no local Lua interpreter to even
+syntax-check it. Treat `handler.lua` as reviewed-but-unrun until the stack starts.
+
+*Verify:* `./scripts/build.sh -pl gateway/kong test` → 12 tests.
+
 <!-- next-commit-log-entry -->

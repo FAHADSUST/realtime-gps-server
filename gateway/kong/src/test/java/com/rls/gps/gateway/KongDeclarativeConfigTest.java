@@ -1,5 +1,6 @@
 package com.rls.gps.gateway;
 
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +19,9 @@ class KongDeclarativeConfigTest {
 
     /** Served only on each service's internal port; Kong must never have a route for them. */
     private static final List<String> RESTRICTED_PREFIXES = List.of("/api/v1/company", "/api/v1/internal");
+
+    /** Routes that are unauthenticated on purpose. Adding to this list should need a good reason. */
+    private static final List<String> PUBLIC_ROUTES = List.of("user-signup", "auth-token");
 
     private final KongConfig config = KongConfig.load();
 
@@ -92,5 +96,38 @@ class KongDeclarativeConfigTest {
         // These two cannot require a token: one creates the user, the other issues the token.
         assertThat(KongConfig.pluginNames(config.route("user-signup"))).doesNotContain("rls_auth");
         assertThat(KongConfig.pluginNames(config.route("auth-token"))).doesNotContain("rls_auth");
+    }
+
+    /**
+     * The invariant that matters as routes are added for ping, history and metadata: a new route is
+     * authenticated unless it is deliberately listed as public here.
+     */
+    @Test
+    void everyRouteOutsideThePublicAllowlistRequiresAuthentication() {
+        for (Map<String, Object> route : config.routes()) {
+            String name = (String) route.get("name");
+            if (PUBLIC_ROUTES.contains(name)) {
+                continue;
+            }
+            assertThat(KongConfig.pluginNames(route))
+                    .as("route '%s' must apply rls_auth or be added to the public allowlist", name)
+                    .contains("rls_auth");
+        }
+    }
+
+    @Test
+    void authenticationCallsTheIdServicesRestrictedPort() {
+        Map<?, ?> rlsAuth = KongConfig.plugin(config.route("user-resolve"), "rls_auth");
+        String url = (String) ((Map<?, ?>) rlsAuth.get("config")).get("authenticate_url");
+
+        assertThat(url).endsWith("/api/v1/internal/authenticate");
+        assertThat(url).as("authenticate is served on the internal port, not the public one")
+                .contains(":9081");
+    }
+
+    @Test
+    void thePluginItselfIsPresent() {
+        assertThat(new File("plugins/rls_auth/handler.lua")).isFile();
+        assertThat(new File("plugins/rls_auth/schema.lua")).isFile();
     }
 }

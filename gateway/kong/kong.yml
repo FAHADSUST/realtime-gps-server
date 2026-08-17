@@ -39,6 +39,19 @@ services:
           - POST
         strip_path: false
 
+      # Protected: rls_auth resolves the token into the identity headers the service reads.
+      - name: user-resolve
+        paths:
+          - /api/v1/user/resolve
+        methods:
+          - GET
+        strip_path: false
+        plugins:
+          - name: rls_auth
+            config:
+              # The Id service's restricted port - /api/v1/internal/** is served only there.
+              authenticate_url: http://id-service:9081/api/v1/internal/authenticate
+
 plugins:
   # The trust boundary. A client must never be able to assert who it is, so these headers are
   # stripped from every request regardless of route; rls_auth re-adds them once verified.

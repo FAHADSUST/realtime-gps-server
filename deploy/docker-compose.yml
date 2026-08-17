@@ -125,6 +125,9 @@ services:
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      # Custom plugin: Kong loads kong.plugins.rls_auth from the mounted package path.
+      KONG_PLUGINS: bundled,rls_auth
+      KONG_LUA_PACKAGE_PATH: /opt/kong-plugins/?.lua;;
       KONG_PROXY_LISTEN: 0.0.0.0:8000
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
       KONG_PROXY_ACCESS_LOG: /dev/stdout
@@ -133,6 +136,8 @@ services:
       KONG_ADMIN_ERROR_LOG: /dev/stderr
     volumes:
       - ../gateway/kong/kong.yml:/kong/declarative/kong.yml:ro
+      # Kong resolves kong.plugins.rls_auth against KONG_LUA_PACKAGE_PATH, hence the kong/plugins tail.
+      - ../gateway/kong/plugins:/opt/kong-plugins/kong/plugins:ro
     ports:
       - "${KONG_PROXY_PORT:-8000}:8000"
       # Admin API is bound to the loopback interface only: it can rewrite the whole gateway.

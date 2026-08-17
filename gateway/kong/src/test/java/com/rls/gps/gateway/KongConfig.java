@@ -77,6 +77,15 @@ final class KongConfig {
                 .toList();
     }
 
+    /** A named plugin attached to a route or service. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> plugin(Map<String, Object> owner, String name) {
+        return ((List<Map<String, Object>>) owner.getOrDefault("plugins", List.of())).stream()
+                .filter(plugin -> name.equals(plugin.get("name")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no plugin '" + name + "' on " + owner.get("name")));
+    }
+
     @SuppressWarnings("unchecked")
     Map<String, Object> globalPlugin(String name) {
         return globalPlugins().stream()
