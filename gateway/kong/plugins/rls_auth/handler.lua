@@ -12,6 +12,7 @@ local http = require "resty.http"
 local cjson = require "cjson.safe"
 
 local kong = kong
+local ngx = ngx
 
 local RlsAuth = {
   PRIORITY = 800,
@@ -22,6 +23,7 @@ local COMPANY_HEADER = "X-Company-Id"
 local USER_HEADER = "X-User-Id"
 local APP_KEY_HEADER = "X-App-Key"
 local CORRELATION_HEADER = "X-Correlation-Id"
+local EXPIRES_IN_HEADER = "X-Token-Expires-In"
 
 local function problem(status, code, detail)
   return cjson.encode({
@@ -39,9 +41,13 @@ local function exit(status, body)
 end
 
 --- Asks the Id service about this token.
--- @return a table describing the decision, or nil plus an error string when the Id service is
---         unreachable. An unreachable Id service is never treated as "not authorised".
-local function authenticate(conf, authorization, correlation_id)
+--
+-- Returns `decision, nil, ttl` - the third value tells Kong's cache how long to keep it:
+--   * authorised    -> the token's own remaining life, capped by max_cache_ttl
+--   * not authorised-> negative_cache_ttl, so a replayed bad token stops costing a round trip
+-- Returning `nil, err` means "could not decide", and Kong's cache stores nothing: an outage must
+-- never be remembered as a verdict.
+local function load_decision(conf, authorization, correlation_id)
   local client = http.new()
   client:set_timeouts(conf.connect_timeout, conf.send_timeout, conf.read_timeout)
 
@@ -62,13 +68,17 @@ local function authenticate(conf, authorization, correlation_id)
   end
 
   if res.status ~= 200 then
+    if res.status >= 500 then
+      -- The Id service is broken, not the caller's token. Do not cache, do not call it a 401.
+      return nil, "id service returned " .. res.status
+    end
     -- The Id service already produced an RFC 7807 body with a stable code; pass it through
     -- unchanged so the client sees exactly why, rather than a gateway-flavoured guess.
     return {
       authorized = false,
       status = res.status,
       body = res.body,
-    }
+    }, nil, conf.negative_cache_ttl
   end
 
   local company_id = res.headers[COMPANY_HEADER]
@@ -79,12 +89,19 @@ local function authenticate(conf, authorization, correlation_id)
     return nil, "authenticate response did not carry an identity"
   end
 
+  -- Never outlive the token itself: a cached decision must not keep a revoked user working.
+  local expires_in = tonumber(res.headers[EXPIRES_IN_HEADER]) or 0
+  local ttl = math.min(expires_in, conf.max_cache_ttl)
+  if ttl < 1 then
+    ttl = 1
+  end
+
   return {
     authorized = true,
     company_id = company_id,
     user_id = user_id,
     app_key = res.headers[APP_KEY_HEADER],
-  }
+  }, nil, ttl
 end
 
 function RlsAuth:access(conf)
@@ -93,10 +110,15 @@ function RlsAuth:access(conf)
     return exit(401, problem(401, "token_missing", "No access token was presented"))
   end
 
-  local decision, err = authenticate(conf, authorization, kong.request.get_header(CORRELATION_HEADER))
+  -- Hashed so the raw token is not sitting in a cache key. md5 is a key, not a security control -
+  -- the token is already a bearer secret and the cache is per-node memory.
+  local cache_key = "rls_auth:" .. ngx.md5(authorization)
+
+  local decision, err = kong.cache:get(cache_key, nil, load_decision, conf, authorization,
+    kong.request.get_header(CORRELATION_HEADER))
 
   if not decision then
-    kong.log.err("rls_auth: id service unreachable: ", err)
+    kong.log.err("rls_auth: could not authenticate: ", err)
     return exit(503, problem(503, "authentication_unavailable",
       "Authentication is temporarily unavailable"))
   end

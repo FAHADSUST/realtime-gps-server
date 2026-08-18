@@ -23,6 +23,13 @@ return {
           { connect_timeout = { type = "integer", default = 1000, between = { 1, 60000 } } },
           { send_timeout = { type = "integer", default = 1000, between = { 1, 60000 } } },
           { read_timeout = { type = "integer", default = 2000, between = { 1, 60000 } } },
+
+          -- Upper bound on how long a cached "yes" survives, and therefore on how long a disabled
+          -- user keeps working. Capped at five minutes so no deployment can choose a careless value.
+          { max_cache_ttl = { type = "integer", default = 60, between = { 1, 300 } } },
+          -- A replayed bad token should not cost a round trip every time, but this stays short so a
+          -- user whose access was just fixed is not locked out for long.
+          { negative_cache_ttl = { type = "integer", default = 5, between = { 1, 60 } } },
         },
       },
     },

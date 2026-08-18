@@ -806,4 +806,26 @@ syntax-check it. Treat `handler.lua` as reviewed-but-unrun until the stack start
 
 *Verify:* `./scripts/build.sh -pl gateway/kong test` → 12 tests.
 
+### C5.3 — Caching auth decisions
+
+Calling the Id service on every proxied request would make it the bottleneck for the whole platform
+— at the load figures in the original spec (~1500 req/s through one instance) that is a non-starter.
+The plugin now caches in `kong.cache`, keyed by a hash of the token.
+
+The interesting part is the TTL, which is **not** a fixed number:
+
+| Outcome | Cached for | Why |
+|---|---|---|
+| Authorised | `min(X-Token-Expires-In, max_cache_ttl)`, default cap 60 s | Never outlive the token; C4.5 sends the remaining life for exactly this |
+| Rejected (401/403) | `negative_cache_ttl`, default 5 s | A replayed bad token shouldn't cost a round trip each time, but a user whose access was just restored isn't locked out for long |
+| Id service 5xx or unreachable | **not cached** | An outage must never be remembered as a verdict |
+
+`max_cache_ttl` is capped at 300 s in the plugin schema, so no deployment can cache a "yes" for
+longer than five minutes — that ceiling *is* the revocation delay, which makes it a security
+parameter rather than a tuning knob, and the config test asserts it.
+
+The token is hashed into the cache key rather than used raw.
+
+*Verify:* `./scripts/build.sh -pl gateway/kong test` → 13 tests.
+
 <!-- next-commit-log-entry -->

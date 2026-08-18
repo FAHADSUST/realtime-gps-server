@@ -51,6 +51,9 @@ services:
             config:
               # The Id service's restricted port - /api/v1/internal/** is served only there.
               authenticate_url: http://id-service:9081/api/v1/internal/authenticate
+              # Bounds how long a disabled user keeps working after being disabled.
+              max_cache_ttl: 60
+              negative_cache_ttl: 5
 
 plugins:
   # The trust boundary. A client must never be able to assert who it is, so these headers are

@@ -125,6 +125,19 @@ class KongDeclarativeConfigTest {
                 .contains(":9081");
     }
 
+    /**
+     * A cached "yes" is how long a disabled user keeps working, so the bound is part of the security
+     * posture rather than a tuning detail.
+     */
+    @Test
+    void cachedDecisionsExpireWithinAFewMinutes() {
+        Map<?, ?> rlsAuth = KongConfig.plugin(config.route("user-resolve"), "rls_auth");
+        Map<?, ?> pluginConfig = (Map<?, ?>) rlsAuth.get("config");
+
+        assertThat((Integer) pluginConfig.get("max_cache_ttl")).isBetween(1, 300);
+        assertThat((Integer) pluginConfig.get("negative_cache_ttl")).isBetween(1, 60);
+    }
+
     @Test
     void thePluginItselfIsPresent() {
         assertThat(new File("plugins/rls_auth/handler.lua")).isFile();
