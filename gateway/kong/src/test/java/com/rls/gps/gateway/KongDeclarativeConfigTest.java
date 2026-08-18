@@ -139,6 +139,39 @@ class KongDeclarativeConfigTest {
     }
 
     @Test
+    void everyRequestIsRateLimitedAndMeasured() {
+        assertThat(config.globalPlugins()).extracting(plugin -> plugin.get("name"))
+                .contains("rate-limiting", "cors", "prometheus");
+
+        Map<?, ?> limits = (Map<?, ?>) config.globalPlugin("rate-limiting").get("config");
+        assertThat((Integer) limits.get("minute")).isPositive();
+        // A rate limiter that cannot count must not take the platform down with it.
+        assertThat(limits.get("fault_tolerant")).isEqualTo(true);
+    }
+
+    /** The login endpoint is the platform's password-guessing surface. */
+    @Test
+    void tokenIssuanceIsRateLimitedFarMoreTightlyThanEverythingElse() {
+        int global = (Integer) ((Map<?, ?>) config.globalPlugin("rate-limiting").get("config")).get("minute");
+        Map<?, ?> routeLimit = KongConfig.plugin(config.route("auth-token"), "rate-limiting");
+        int perRoute = (Integer) ((Map<?, ?>) routeLimit.get("config")).get("minute");
+
+        assertThat(perRoute).isLessThan(global);
+        assertThat(perRoute).isLessThanOrEqualTo(30);
+    }
+
+    @Test
+    void corsDoesNotCombineWildcardOriginsWithCredentials() {
+        Map<?, ?> cors = (Map<?, ?>) config.globalPlugin("cors").get("config");
+
+        if (((List<?>) cors.get("origins")).contains("*")) {
+            assertThat(cors.get("credentials"))
+                    .as("wildcard origins with credentials is invalid CORS and a token-leak risk")
+                    .isEqualTo(false);
+        }
+    }
+
+    @Test
     void thePluginItselfIsPresent() {
         assertThat(new File("plugins/rls_auth/handler.lua")).isFile();
         assertThat(new File("plugins/rls_auth/schema.lua")).isFile();

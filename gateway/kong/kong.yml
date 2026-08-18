@@ -38,6 +38,17 @@ services:
         methods:
           - POST
         strip_path: false
+        plugins:
+          # This is the password-guessing surface of the whole platform, so it gets a much tighter
+          # limit than everything else. Ten attempts a minute per IP is generous for a human and
+          # useless for a dictionary.
+          - name: rate-limiting
+            config:
+              minute: 10
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
 
       # Protected: rls_auth resolves the token into the identity headers the service reads.
       - name: user-resolve
@@ -80,3 +91,42 @@ plugins:
       header_name: X-Correlation-Id
       generator: uuid
       echo_downstream: true
+
+  # A ceiling on what any single client can cost the platform. `policy: local` counts per Kong node,
+  # which is exact while one node is deployed; with several, switch to `policy: redis` pointed at the
+  # Redis already in the stack so the limit is shared.
+  - name: rate-limiting
+    config:
+      minute: 600
+      policy: local
+      limit_by: ip
+      # A rate limiter that cannot count must not become an outage.
+      fault_tolerant: true
+      hide_client_headers: false
+
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PATCH
+        - OPTIONS
+      headers:
+        - Authorization
+        - Content-Type
+        - X-Correlation-Id
+      exposed_headers:
+        - X-Correlation-Id
+      # Tokens travel in the Authorization header, not cookies, so credentialed CORS is not needed -
+      # and allowing it alongside origins "*" is invalid anyway.
+      credentials: false
+      max_age: 3600
+
+  # Kong's own request/latency/status metrics, scraped from the Admin API at /metrics.
+  - name: prometheus
+    config:
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true

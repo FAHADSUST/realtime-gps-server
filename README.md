@@ -828,4 +828,23 @@ The token is hashed into the cache key rather than used raw.
 
 *Verify:* `./scripts/build.sh -pl gateway/kong test` → 13 tests.
 
+### C5.4 — Rate limiting, CORS and metrics
+
+Three global plugins, plus one route-specific limit:
+
+- **`rate-limiting`, 600/min per IP globally** — a ceiling on what any one client can cost the
+  platform. `policy: local` counts per Kong node, which is exact while one node is deployed; with
+  several, switch to `policy: redis` pointed at the Redis already in the stack. `fault_tolerant:
+  true` on purpose: a rate limiter that cannot count must not become an outage.
+- **`rate-limiting`, 10/min on `POST /api/v1/auth/token`** — this route is the platform's
+  password-guessing surface, and the global limit is far too generous for it. Ten attempts a minute
+  is unremarkable for a human and useless for a dictionary. The config test asserts this route's
+  limit stays well below the global one.
+- **`cors`** — wildcard origins with `credentials: false`. Tokens travel in the `Authorization`
+  header rather than cookies, so credentialed CORS isn't needed; combining it with `origins: "*"` is
+  invalid CORS and a token-leak risk, so a test refuses that combination outright.
+- **`prometheus`** — Kong's own status, latency and bandwidth metrics on the Admin API.
+
+*Verify:* `./scripts/build.sh -pl gateway/kong test` → 16 tests.
+
 <!-- next-commit-log-entry -->
