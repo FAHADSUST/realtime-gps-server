@@ -105,7 +105,7 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 | C2 | Local infrastructure (MySQL, Redis, RabbitMQ, Consul) | C2.1 – C2.4 | 🟡 written, not yet run¹ |
 | C3 | Id service — company signup | C3.1 – C3.6 | ✅ done (ITs pending Docker¹) |
 | C4 | Id service — users, tokens, internal authenticate | C4.1 – C4.6 | ✅ done (ITs pending Docker¹) |
-| C5 | Kong gateway + `rls_auth` plugin | C5.1 – C5.5 | ⬜ planned |
+| C5 | Kong gateway + `rls_auth` plugin | C5.1 – C5.5 | 🟡 config tested; runtime pending Docker¹ |
 | C6 | Ping service — Redis write path | C6.1 – C6.4 | ⬜ planned |
 | C7 | Ping service — buffer → RabbitMQ bulk publish | C7.1 – C7.4 | ⬜ planned |
 | C8 | Ping service — radius search | C8.1 – C8.2 | ⬜ planned |
@@ -284,6 +284,57 @@ an `X-Token-Expires-In` that bounds how long the plugin may cache the decision.
 | `gps.id.jwt.secret` | Consul KV `config/id-service/data` | *(blank → random key + warning)* |
 | `gps.id.jwt.issuer` / `.ttl` | Consul KV | `rls-id-service` / `1h` |
 | datasource host/port/credentials | `MYSQL_*` env | `localhost:3306`, `gps_id` |
+
+---
+
+## Gateway — `gateway/kong`
+
+Kong runs DB-less: [`kong.yml`](gateway/kong/kong.yml) *is* the gateway. Nothing is configured
+through the Admin API at runtime, so every routing change is a reviewable diff.
+
+### Route table
+
+| Route | Method | Auth | Notes |
+|---|---|---|---|
+| `/api/v1/user/signup` | POST | **public** | No user exists yet; authenticates with company credentials in the body |
+| `/api/v1/auth/token` | POST | **public** | Where tokens come from; rate limited to 10/min per IP |
+| `/api/v1/user/resolve` | GET | `rls_auth` | Company scoped from the verified identity |
+| `/api/v1/company/**` | — | **no route** | Restricted: internal port only |
+| `/api/v1/internal/**` | — | **no route** | Restricted: internal port only |
+
+Ping endpoints are intentionally not routed: they are liveness probes for Consul and Compose, not a
+public API. Kong's own health is `curl localhost:8001/status`.
+
+### The trust boundary, in order
+
+1. `request-transformer` (priority 801) removes `X-Company-Id`, `X-User-Id`, `X-App-Key` and
+   `X-Gateway-Token` from the incoming request, then adds the real gateway token.
+2. `rls_auth` (priority 800) resolves the `Authorization` header via the Id service's internal port
+   and sets the verified identity headers.
+3. The service checks `X-Gateway-Token` ([`GatewayTokenFilter`](libs/gps-common/src/main/java/com/rls/gps/common/security/GatewayTokenFilter.java))
+   and reads the identity ([`IdentityFilter`](libs/gps-common/src/main/java/com/rls/gps/common/security/IdentityFilter.java)).
+
+So a client's identity headers are stripped before anything reads them, a direct call to a service
+port is rejected for lacking the gateway token, and only `rls_auth` can assert who someone is.
+
+### Upstream resolution
+
+Services are addressed by Docker DNS (`http://id-service:8081`). The original AWS deployment
+resolved upstreams through Consul DNS; to match it, set `KONG_DNS_RESOLVER=consul:8600` on the Kong
+container and change the service URL to `http://id-service.service.consul` (no port — Kong takes it
+from the SRV record Consul publishes). Compose DNS is the default here because it has one less
+moving part while the stack is being brought up.
+
+### Adding a route
+
+Add it under the right service in `kong.yml`, and either apply `rls_auth` or add its name to
+`PUBLIC_ROUTES` in
+[`KongDeclarativeConfigTest`](gateway/kong/src/test/java/com/rls/gps/gateway/KongDeclarativeConfigTest.java).
+The build fails otherwise — which is the point.
+
+```bash
+./scripts/up.sh && ./scripts/smoke-gateway.sh
+```
 
 ---
 
@@ -846,5 +897,34 @@ Three global plugins, plus one route-specific limit:
 - **`prometheus`** — Kong's own status, latency and bandwidth metrics on the Admin API.
 
 *Verify:* `./scripts/build.sh -pl gateway/kong test` → 16 tests.
+
+### C5.5 — Gateway smoke test
+
+[`scripts/smoke-gateway.sh`](scripts/smoke-gateway.sh) drives the whole auth path against a running
+stack: register a company on the internal port, sign a user up through Kong, get a token, and then
+check what the gateway does and doesn't allow.
+
+The two checks that justify the milestone:
+
+```bash
+# Forged identity headers alone must not authenticate...
+curl -s -o /dev/null -w '%{http_code}' localhost:8000/api/v1/user/resolve \
+  -H 'X-Company-Id: forged-company' -H 'X-User-Id: forged-user'      # -> 401
+
+# ...and alongside a real token they must be overwritten, not merged.
+curl -s localhost:8000/api/v1/user/resolve -H "Authorization: Bearer $TOKEN" \
+  -H 'X-Company-Id: forged-company'                                   # -> users of the REAL company
+```
+
+It also asserts that restricted endpoints 404 through Kong, that a garbage token surfaces the Id
+service's own `token_invalid` code rather than a gateway-flavoured one, and that hammering the token
+endpoint trips the 429.
+
+This completes the gateway milestone — the routing, the plugin, the caching and the checks that
+prove them. **The runtime half is unrun**: `smoke-gateway.sh` needs the stack, and the stack needs
+Docker. It is syntax-checked and ready.
+
+*Verify:* `bash -n scripts/smoke-gateway.sh`; then `./scripts/up.sh && ./scripts/smoke-gateway.sh`
+once Docker is available.
 
 <!-- next-commit-log-entry -->
