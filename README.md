@@ -936,4 +936,39 @@ again **no storage yet**, so this commit boots and is tested without a single co
 *Verify:* `./scripts/build.sh -pl services/ping-service -am test` → `PingServiceApplicationTest`
 (2 tests).
 
+### C6.2 — Last-known locations in Redis
+
+The store behind "only the last location of each user is cached on Redis".
+
+```
+gps:{companyId}:last:{userId}   JSON, expires after gps.ping.redis.last-location-ttl (24h)
+gps:{companyId}:geo             GEO set, member = userId
+```
+
+**The write is a Lua script, not a read-then-write.**
+[`last-location-upsert.lua`](services/ping-service/src/main/resources/redis/last-location-upsert.lua)
+compares the incoming `recordedAt` against what's stored and refuses to go backwards. This is not
+premature cleverness — devices buffer while offline and then flush, so points arrive out of order as
+a matter of course, and a read-compare-write in the service would also race against its own
+concurrent requests. Either way the visible bug is the same: a user's "last" position jumping
+backwards in time. One script, one round trip, no race.
+
+Two consequences worth knowing:
+
+- **Timestamps are stored as epoch millis**, so Lua compares with `tonumber` instead of parsing
+  dates. The storage record is kept separate from the API type so the format can change freely.
+- **The geo index has no per-member TTL** — Redis offers none — so a member can outlive the location
+  it points at. The location key is the source of truth; radius queries (C8) ignore members whose
+  location has expired.
+
+Multi-user reads are a single `MGET`, because `GET /api/v1/locations?userIds=…` is explicitly a
+many-users call.
+
+Adding Redis also made the skeleton's health assertion fail, which was correct of it: the health
+endpoint now depends on a container. That check moved to `PingServiceHealthIT` (real Redis, reports
+UP), and the Docker-free test kept the narrower question — does the app boot and serve ping.
+
+*Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `LastLocationRepositoryIT`
+(9 tests, with Docker) including the out-of-order and cross-company cases.
+
 <!-- next-commit-log-entry -->

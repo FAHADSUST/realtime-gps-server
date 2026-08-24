@@ -31,9 +31,24 @@ spring:
         health-check-path: /actuator/health
         health-check-interval: 10s
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # Short: this sits on the hot write path, so a slow Redis must fail fast rather than queue up.
+      timeout: 2s
+      connect-timeout: 2s
+
 server:
   port: ${SERVER_PORT:8082}
   shutdown: graceful
+
+gps:
+  ping:
+    redis:
+      key-prefix: gps
+      # How long a silent user stays visible to radius queries.
+      last-location-ttl: 24h
 
 management:
   endpoints:
