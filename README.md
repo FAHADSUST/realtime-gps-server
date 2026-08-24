@@ -927,4 +927,13 @@ Docker. It is syntax-checked and ready.
 *Verify:* `bash -n scripts/smoke-gateway.sh`; then `./scripts/up.sh && ./scripts/smoke-gateway.sh`
 once Docker is available.
 
+### C6.1 — Ping service skeleton
+
+The platform's write path begins. Same shape as the Id service skeleton — Consul config and
+discovery, a Dockerfile, a Compose entry, `GET /api/v1/ping` inherited from `gps-common` — and
+again **no storage yet**, so this commit boots and is tested without a single container.
+
+*Verify:* `./scripts/build.sh -pl services/ping-service -am test` → `PingServiceApplicationTest`
+(2 tests).
+
 <!-- next-commit-log-entry -->

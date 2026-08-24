@@ -22,6 +22,7 @@
     <modules>
         <module>libs/gps-common</module>
         <module>services/id-service</module>
+        <module>services/ping-service</module>
         <module>gateway/kong</module>
     </modules>
 
