@@ -971,4 +971,38 @@ UP), and the Docker-free test kept the narrower question — does the app boot a
 *Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `LastLocationRepositoryIT`
 (9 tests, with Docker) including the out-of-order and cross-company cases.
 
+### C6.3 — `POST /api/v1/locations`
+
+The platform's hot path. A batch of fixes for the authenticated user, routed through Kong with
+`rls_auth`:
+
+```bash
+curl -i -X POST http://localhost:8000/api/v1/locations -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"locations":[{"latitude":23.7808,"longitude":90.4019,"recordedAt":"2026-09-16T10:00:00Z","accuracy":5.0}]}'
+```
+
+```json
+{ "accepted": 1, "lastLocationUpdated": true }
+```
+
+- **202, not 201.** The fixes are accepted for processing: the last known position is updated before
+  responding, but durable history is written asynchronously (C7/C9), so there is no resource to
+  point at.
+- **The user comes from the verified identity, never the payload.** There is no user field in the
+  request at all, so no device can report a position on someone else's behalf.
+- **Coordinates are boxed `Double` with `@NotNull`.** A primitive would default a missing latitude
+  to `0.0` — a real place in the Gulf of Guinea, and a bug that looks like data rather than an
+  error.
+- **A timestamp more than five minutes in the future is rejected** (`location_timestamp_in_future`).
+  This falls straight out of C6.2's newest-wins rule: one fix dated 2099 from a device with a broken
+  clock would block every genuine update for that user until the key expired.
+- Only the newest fix in a batch touches Redis — one round trip regardless of batch size. The rest
+  are history, and C7 sends the whole batch to the queue.
+- `lastLocationUpdated: false` means the batch was entirely older than what's stored. That is
+  information, not an error, so it is reported rather than raised.
+
+*Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `LocationIngestIT` (9 tests).
+The new Kong route was accepted by the gateway's "every non-public route authenticates" invariant.
+
 <!-- next-commit-log-entry -->

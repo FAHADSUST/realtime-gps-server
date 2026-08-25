@@ -9,7 +9,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * Ping service tuning. Values come from Consul KV ({@code config/ping-service/data}).
  */
 @ConfigurationProperties(prefix = "gps.ping")
-public record PingProperties(@DefaultValue Redis redis) {
+public record PingProperties(@DefaultValue Redis redis,
+                             @DefaultValue("5m") Duration maxClockSkew) {
 
     /**
      * @param keyPrefix       namespace for every key this service writes

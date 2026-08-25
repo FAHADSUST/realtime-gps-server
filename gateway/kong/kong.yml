@@ -66,6 +66,27 @@ services:
               max_cache_ttl: 60
               negative_cache_ttl: 5
 
+  - name: ping-service
+    url: http://ping-service:8082
+    connect_timeout: 2000
+    read_timeout: 10000
+    write_timeout: 10000
+    retries: 1
+    routes:
+      # The platform's hot path: every device reporting its position lands here.
+      - name: locations-submit
+        paths:
+          - /api/v1/locations
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: rls_auth
+            config:
+              authenticate_url: http://id-service:9081/api/v1/internal/authenticate
+              max_cache_ttl: 60
+              negative_cache_ttl: 5
+
 plugins:
   # The trust boundary. A client must never be able to assert who it is, so these headers are
   # stripped from every request regardless of route; rls_auth re-adds them once verified.
