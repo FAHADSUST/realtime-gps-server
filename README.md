@@ -106,7 +106,7 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 | C3 | Id service — company signup | C3.1 – C3.6 | ✅ done (ITs pending Docker¹) |
 | C4 | Id service — users, tokens, internal authenticate | C4.1 – C4.6 | ✅ done (ITs pending Docker¹) |
 | C5 | Kong gateway + `rls_auth` plugin | C5.1 – C5.5 | 🟡 config tested; runtime pending Docker¹ |
-| C6 | Ping service — Redis write path | C6.1 – C6.4 | ⬜ planned |
+| C6 | Ping service — Redis write path | C6.1 – C6.4 | ✅ done (ITs pending Docker¹) |
 | C7 | Ping service — buffer → RabbitMQ bulk publish | C7.1 – C7.4 | ⬜ planned |
 | C8 | Ping service — radius search | C8.1 – C8.2 | ⬜ planned |
 | C9 | History service — queue consumer → MySQL | C9.1 – C9.4 | ⬜ planned |
@@ -284,6 +284,60 @@ an `X-Token-Expires-In` that bounds how long the plugin may cache the decision.
 | `gps.id.jwt.secret` | Consul KV `config/id-service/data` | *(blank → random key + warning)* |
 | `gps.id.jwt.issuer` / `.ttl` | Consul KV | `rls-id-service` / `1h` |
 | datasource host/port/credentials | `MYSQL_*` env | `localhost:3306`, `gps_id` |
+
+---
+
+## Ping service — `services/ping-service`
+
+The write path. Every position a device reports arrives here; Redis holds the last one per user.
+
+### `POST /api/v1/locations`
+
+```bash
+curl -i -X POST http://localhost:8000/api/v1/locations -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"locations":[{"latitude":23.7808,"longitude":90.4019,"recordedAt":"2026-09-16T10:00:00Z"}]}'
+```
+
+A batch of 1–500 fixes for the **authenticated** user — there is no user field in the payload.
+`recordedAt` is optional (server time is used when absent) but must not be more than five minutes in
+the future. Answers `202` with `{"accepted": n, "lastLocationUpdated": bool}`.
+
+### `GET /api/v1/locations?userIds=…`
+
+```bash
+curl -s "http://localhost:8000/api/v1/locations?userIds=user-1,user-2" -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "locations": [
+    { "userId": "user-1", "latitude": 23.7808, "longitude": 90.4019,
+      "recordedAt": "2026-09-16T10:00:00Z", "receivedAt": "2026-09-16T10:00:01.412Z",
+      "accuracy": 5.0, "speed": null, "heading": null }
+  ],
+  "missing": ["user-2"]
+}
+```
+
+Up to 100 users per call, scoped to the caller's company, one `MGET` behind the scenes. Users with
+nothing stored come back in `missing` rather than being silently dropped.
+
+### Redis key schema
+
+| Key | Type | Contents |
+|---|---|---|
+| `gps:{companyId}:last:{userId}` | string | Location JSON, TTL `gps.ping.redis.last-location-ttl` (24 h) |
+| `gps:{companyId}:geo` | geo set | member = `userId`, for radius queries (C8) |
+
+Writes go through [`last-location-upsert.lua`](services/ping-service/src/main/resources/redis/last-location-upsert.lua),
+which refuses to replace a newer fix with an older one.
+
+| Property | Default | Purpose |
+|---|---|---|
+| `gps.ping.redis.key-prefix` | `gps` | namespace for every key |
+| `gps.ping.redis.last-location-ttl` | `24h` | how long a silent user stays visible |
+| `gps.ping.max-clock-skew` | `5m` | how far into the future a `recordedAt` may be |
 
 ---
 
@@ -1004,5 +1058,22 @@ curl -i -X POST http://localhost:8000/api/v1/locations -H "Authorization: Bearer
 
 *Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `LocationIngestIT` (9 tests).
 The new Kong route was accepted by the gateway's "every non-public route authenticates" invariant.
+
+### C6.4 — `GET /api/v1/locations`
+
+The spec's "get the last location of specific users". Accepts `?userIds=a,b,c` or repeated
+`?userIds=` parameters, scoped to the caller's company, resolved in a single `MGET`.
+
+- **Users with nothing stored come back in `missing`**, not silently dropped. "Never reported" and
+  "reported, but the entry expired" look the same from here, and either way the client needs to know
+  which of the users it asked about it has no answer for — without diffing two lists to find out.
+- **Capped at 100 users per call.** This is a fan-out read; uncapped, one request could ask for every
+  user a company has.
+- Duplicate ids collapse, so asking for the same user ten times costs one lookup.
+
+This completes the Redis write path: ingest, store, read back.
+
+*Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `LastLocationQueryIT` (8 tests),
+27 ping-service ITs in total.
 
 <!-- next-commit-log-entry -->

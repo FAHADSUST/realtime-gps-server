@@ -4,11 +4,15 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.rls.gps.common.error.ApiExceptions;
 import com.rls.gps.common.security.Identity;
 import com.rls.gps.ping.config.PingProperties;
+import com.rls.gps.ping.location.dto.LastLocationsResponse;
 import com.rls.gps.ping.location.dto.LocationBatchRequest;
 import com.rls.gps.ping.location.dto.LocationBatchResponse;
 import com.rls.gps.ping.location.dto.LocationPointRequest;
@@ -55,6 +59,24 @@ public class LocationService {
         }
 
         return new LocationBatchResponse(points.size(), updated);
+    }
+
+    /**
+     * Reads several users' last known positions, scoped to the caller's company.
+     *
+     * <p>Duplicates in the request are collapsed, so asking for the same user ten times costs one
+     * lookup, and users with nothing stored come back in {@code missing} rather than being silently
+     * dropped.
+     */
+    public LastLocationsResponse lastLocations(Identity caller, List<String> userIds) {
+        LinkedHashSet<String> requested = new LinkedHashSet<>(userIds);
+
+        List<LastLocation> found = lastLocations.findByUserIds(caller.companyId(), requested);
+
+        Set<String> foundIds = found.stream().map(LastLocation::userId).collect(Collectors.toSet());
+        List<String> missing = requested.stream().filter(id -> !foundIds.contains(id)).toList();
+
+        return new LastLocationsResponse(found, missing);
     }
 
     private LocationPoint toPoint(LocationPointRequest request, Instant receivedAt) {

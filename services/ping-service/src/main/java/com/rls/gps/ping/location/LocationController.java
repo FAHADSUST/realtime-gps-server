@@ -1,20 +1,32 @@
 package com.rls.gps.ping.location;
 
+import java.util.List;
+
 import com.rls.gps.common.security.CurrentIdentity;
 import com.rls.gps.common.security.Identity;
+import com.rls.gps.ping.location.dto.LastLocationsResponse;
 import com.rls.gps.ping.location.dto.LocationBatchRequest;
 import com.rls.gps.ping.location.dto.LocationBatchResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/locations")
+@Validated
 public class LocationController {
+
+    /** A fan-out read: without a cap, one request could ask for every user a company has. */
+    static final int MAX_USERS_PER_QUERY = 100;
 
     private final LocationService locationService;
 
@@ -37,5 +49,19 @@ public class LocationController {
     public LocationBatchResponse submit(@CurrentIdentity Identity caller,
                                         @Valid @RequestBody LocationBatchRequest request) {
         return locationService.ingest(caller, request);
+    }
+
+    /**
+     * The last known position of specific users in the caller's company.
+     *
+     * <p>Accepts {@code ?userIds=a,b,c} or repeated {@code ?userIds=} parameters. The cap exists
+     * because this is a fan-out read: unbounded, one request could ask for every user a company has.
+     */
+    @GetMapping
+    public LastLocationsResponse lastLocations(
+            @CurrentIdentity Identity caller,
+            @RequestParam @NotEmpty @Size(max = MAX_USERS_PER_QUERY,
+                    message = "may ask about at most " + MAX_USERS_PER_QUERY + " users") List<String> userIds) {
+        return locationService.lastLocations(caller, userIds);
     }
 }
