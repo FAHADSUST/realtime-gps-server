@@ -1076,4 +1076,36 @@ This completes the Redis write path: ingest, store, read back.
 *Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `LastLocationQueryIT` (8 tests),
 27 ping-service ITs in total.
 
+### C7.1 — The location queue: contract and publisher
+
+A new shared module, `libs/gps-messaging`, holds the pipeline's contract: the topology names, the
+`Declarables` that create it, and the `LocationBatchMessage` / `LocationMessage` types.
+
+**Topology lives in a shared module, not in Compose and not in each service.** Split across two
+places, a mismatched queue argument doesn't surface as a config diff — it surfaces at runtime as
+`PRECONDITION_FAILED` on whichever service happens to start second. Declared once, publisher and
+consumer cannot disagree.
+
+```
+gps.location (direct) --location.batch--> gps.location.history --x-dead-letter--> gps.location.dlx
+                                                                                        |
+                                                                           gps.location.history.dlq
+```
+
+- **A batch is one message.** One message per fix would mean one publish, one delivery and one ack
+  each; at the spec's throughput the per-message overhead dominates. Batching trades a little
+  latency for an order of magnitude in cost.
+- **Every message carries its own company and user**, because a batch is assembled from whatever was
+  buffered and routinely mixes both. Putting the owner on the envelope would make the consumer's job
+  impossible.
+- **The dead-letter queue is declared up front**, so the first poison batch has somewhere to go
+  rather than being redelivered forever.
+- **Publishes are mandatory with confirm and return callbacks.** By default an unroutable message or
+  a broker nack vanishes silently and the first symptom is missing history days later. Confirms are
+  handled *asynchronously* — waiting for each one would serialise the flush loop behind a network
+  round trip — so a failure is logged and counted rather than retried.
+
+*Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `LocationPublisherIT` (5 tests,
+with Docker), including that a three-fix batch arrives as exactly one message.
+
 <!-- next-commit-log-entry -->

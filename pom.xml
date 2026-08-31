@@ -21,6 +21,7 @@
 
     <modules>
         <module>libs/gps-common</module>
+        <module>libs/gps-messaging</module>
         <module>services/id-service</module>
         <module>services/ping-service</module>
         <module>gateway/kong</module>
@@ -51,6 +52,11 @@
             <dependency>
                 <groupId>com.rls.gps</groupId>
                 <artifactId>gps-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.rls.gps</groupId>
+                <artifactId>gps-messaging</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

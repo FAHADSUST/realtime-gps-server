@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -34,10 +35,18 @@ public abstract class AbstractPingServiceIT {
     static final GenericContainer<?> REDIS =
             new GenericContainer<>("redis:7-alpine").withExposedPorts(REDIS_PORT);
 
+    @Container
+    static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:4-management");
+
     @DynamicPropertySource
-    static void redisProperties(DynamicPropertyRegistry registry) {
+    static void infrastructureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(REDIS_PORT));
+
+        registry.add("spring.rabbitmq.host", RABBIT::getHost);
+        registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
+        registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);
+        registry.add("spring.rabbitmq.password", RABBIT::getAdminPassword);
     }
 
     @Autowired

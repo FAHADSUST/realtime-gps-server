@@ -31,6 +31,15 @@ spring:
         health-check-path: /actuator/health
         health-check-interval: 10s
 
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:gps}
+    password: ${RABBITMQ_PASSWORD:gps_pw}
+    # Confirms are handled asynchronously; see LocationPublisher.
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
