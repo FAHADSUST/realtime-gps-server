@@ -10,7 +10,24 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  */
 @ConfigurationProperties(prefix = "gps.ping")
 public record PingProperties(@DefaultValue Redis redis,
+                             @DefaultValue Buffer buffer,
                              @DefaultValue("5m") Duration maxClockSkew) {
+
+    /**
+     * The in-memory staging area between a request and the broker.
+     *
+     * @param capacity        how many fixes may wait to be published. Bounded on purpose: an
+     *                        unbounded queue turns a slow broker into an out-of-memory kill.
+     * @param maxBatchSize    fixes per published message
+     * @param flushInterval   how long a lone fix may wait for company before being published anyway
+     * @param shutdownTimeout how long shutdown waits for the flush loop to finish its current batch
+     *                        before draining the rest
+     */
+    public record Buffer(@DefaultValue("50000") int capacity,
+                         @DefaultValue("500") int maxBatchSize,
+                         @DefaultValue("500ms") Duration flushInterval,
+                         @DefaultValue("5s") Duration shutdownTimeout) {
+    }
 
     /**
      * @param keyPrefix       namespace for every key this service writes

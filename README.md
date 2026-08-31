@@ -1108,4 +1108,42 @@ gps.location (direct) --location.batch--> gps.location.history --x-dead-letter--
 *Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `LocationPublisherIT` (5 tests,
 with Docker), including that a three-fix batch arrives as exactly one message.
 
+### C7.2 — The in-memory buffer and flush loop
+
+The spec's "stores the location data on memory and after a certain time pushes them to the RabbitMQ
+as a bulk", implemented as
+[`LocationBuffer`](services/ping-service/src/main/java/com/rls/gps/ping/publish/LocationBuffer.java)
+plus a dedicated flush thread.
+
+**The queue is bounded, and that is the point.** An unbounded queue does not mean "never lose data";
+it means that when the broker is slow the service keeps accepting work until the heap is gone and
+then loses *everything* at once — including the requests it was serving. A bounded queue sheds the
+overflow and stays up.
+
+`takeBatch()` blocks up to the flush interval for the *first* fix, then takes everything else already
+queued. So a busy service publishes full batches with no delay, and a quiet one still gets a lone
+fix out within the interval rather than holding it hostage until the next one arrives. A dedicated
+thread beats a scheduled task here for the same reason: no waiting for the next tick when a full
+batch already exists.
+
+Two failure modes handled deliberately:
+
+- **A failing sink must not kill the flush loop.** If the loop died on a broker hiccup, the service
+  would keep accepting locations and silently never publish again — the worst kind of failure,
+  because every health check still passes. Exceptions are logged per batch and the loop continues.
+- **Shutdown drains the buffer.** `SmartLifecycle.stop()` lets the current batch finish, then
+  publishes whatever is left. Losing the buffer on every deploy would be a needless hole in the
+  history.
+
+| Property | Default | Meaning |
+|---|---|---|
+| `gps.ping.buffer.capacity` | 50000 | fixes that may wait to be published |
+| `gps.ping.buffer.max-batch-size` | 500 | fixes per published message |
+| `gps.ping.buffer.flush-interval` | 500ms | how long a lone fix waits for company |
+| `gps.ping.buffer.shutdown-timeout` | 5s | how long stop() waits for the current batch |
+
+*Verify:* `./scripts/build.sh -pl services/ping-service -am test` → `LocationBufferTest` (8) and
+`LocationBufferFlusherTest` (5) — including shutdown drain and sink-failure recovery. **No Docker
+needed**: the flusher publishes to an interface, so the tests use a collecting stub.
+
 <!-- next-commit-log-entry -->
