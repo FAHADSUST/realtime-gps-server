@@ -1,0 +1,20 @@
+# Ping service tuning, seeded to Consul KV at config/ping-service/data.
+#
+# These are the knobs worth turning under load. Consul's watch picks up changes without a redeploy,
+# which is the point of keeping them here rather than in the image.
+
+gps:
+  ping:
+    redis:
+      key-prefix: gps
+      last-location-ttl: 24h
+    buffer:
+      # Roughly 30 seconds of headroom at the throughput the original load tests reported.
+      capacity: 50000
+      max-batch-size: 500
+      flush-interval: 500ms
+      shutdown-timeout: 5s
+      # DROP_NEWEST keeps what was already accepted; DROP_OLDEST favours recent tracks;
+      # REJECT answers 429 so clients that retry can keep their data.
+      overflow-policy: DROP_NEWEST
+    max-clock-skew: 5m

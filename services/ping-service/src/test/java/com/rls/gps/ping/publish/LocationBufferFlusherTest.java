@@ -8,6 +8,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import com.rls.gps.messaging.LocationMessage;
+import com.rls.gps.ping.metrics.PingMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,7 +75,7 @@ class LocationBufferFlusherTest {
     void keepsRunningWhenTheSinkFails() {
         FailingThenWorkingSink flaky = new FailingThenWorkingSink();
         LocationBuffer buffer = new LocationBuffer(100, 1, Duration.ofMillis(50));
-        LocationBufferFlusher flusher = new LocationBufferFlusher(buffer, flaky, 2000);
+        LocationBufferFlusher flusher = new LocationBufferFlusher(buffer, flaky, metrics(), 2000);
         flusher.start();
 
         try {
@@ -102,13 +104,18 @@ class LocationBufferFlusherTest {
     }
 
     private LocationBufferFlusher start(LocationBuffer buffer) {
-        LocationBufferFlusher flusher = new LocationBufferFlusher(buffer, sink, 2000);
+        LocationBufferFlusher flusher = new LocationBufferFlusher(buffer, sink, metrics(), 2000);
         flusher.start();
         return flusher;
     }
 
     private static LocationMessage message(String userId) {
         return new LocationMessage("company-1", userId, 23.78, 90.40, NOW, NOW, null, null, null);
+    }
+
+    /** Real metrics against an in-memory registry - no mocking, and the counters stay exercised. */
+    private static PingMetrics metrics() {
+        return new PingMetrics(new SimpleMeterRegistry(), new LocationBuffer(1, 1, Duration.ofMillis(1)));
     }
 
     private static final class CollectingSink implements LocationBatchSink {

@@ -1,6 +1,7 @@
 package com.rls.gps.ping.config;
 
 import java.time.Duration;
+import com.rls.gps.ping.publish.OverflowPolicy;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -26,7 +27,8 @@ public record PingProperties(@DefaultValue Redis redis,
     public record Buffer(@DefaultValue("50000") int capacity,
                          @DefaultValue("500") int maxBatchSize,
                          @DefaultValue("500ms") Duration flushInterval,
-                         @DefaultValue("5s") Duration shutdownTimeout) {
+                         @DefaultValue("5s") Duration shutdownTimeout,
+                         @DefaultValue("DROP_NEWEST") OverflowPolicy overflowPolicy) {
     }
 
     /**

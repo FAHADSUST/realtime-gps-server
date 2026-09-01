@@ -107,7 +107,7 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 | C4 | Id service — users, tokens, internal authenticate | C4.1 – C4.6 | ✅ done (ITs pending Docker¹) |
 | C5 | Kong gateway + `rls_auth` plugin | C5.1 – C5.5 | 🟡 config tested; runtime pending Docker¹ |
 | C6 | Ping service — Redis write path | C6.1 – C6.4 | ✅ done (ITs pending Docker¹) |
-| C7 | Ping service — buffer → RabbitMQ bulk publish | C7.1 – C7.4 | ⬜ planned |
+| C7 | Ping service — buffer → RabbitMQ bulk publish | C7.1 – C7.4 | ✅ done (ITs pending Docker¹) |
 | C8 | Ping service — radius search | C8.1 – C8.2 | ⬜ planned |
 | C9 | History service — queue consumer → MySQL | C9.1 – C9.4 | ⬜ planned |
 | C10 | History service — history API | C10.1 – C10.2 | ⬜ planned |
@@ -1170,5 +1170,48 @@ that was thrown away would be the more comfortable lie.
 all three fixes of a batch reach the queue while Redis keeps only the newest, published fixes carry
 the gateway-verified identity, and 40 single-fix requests are published as far fewer than 40
 messages.
+
+### C7.4 — Overflow policy and metrics
+
+**What happens when the broker cannot keep up** is now a configured decision rather than an
+accident, in [`LocationAdmission`](services/ping-service/src/main/java/com/rls/gps/ping/publish/LocationAdmission.java):
+
+| `gps.ping.buffer.overflow-policy` | Behaviour | When it's right |
+|---|---|---|
+| **`DROP_NEWEST`** (default) | 202, overflow discarded, `dropped` in the response | Stay responsive; never retract data already accepted |
+| `DROP_OLDEST` | Evict the oldest queued fix to make room | Recent tracks matter more than complete ones |
+| `REJECT` | 429 `location_buffer_full` | Clients that buffer and retry — they keep the data |
+
+`DROP_NEWEST` is the default for one reason: the older fixes in the queue were *already answered with
+a 202*. Evicting them retracts a promise the platform made, while dropping the newest at least tells
+the caller in the same breath.
+
+Metrics ([`PingMetrics`](services/ping-service/src/main/java/com/rls/gps/ping/metrics/PingMetrics.java)),
+on `/actuator/prometheus`:
+
+| Metric | Kind | Why it's there |
+|---|---|---|
+| `gps.ping.buffer.size` / `.remaining` | gauge | **The leading indicator** — it rises before anything is lost, so an alert fires while there is still time to act |
+| `gps.ping.locations.accepted` / `.dropped` | counter | The lagging one: by the time `dropped` moves, data is gone |
+| `gps.ping.batches.published` / `.failed` / `.nacked` | counter | "Could not hand it over" and "the broker took it then refused" are different problems and get different counters |
+
+Buffer tuning now lives in Consul KV ([`ping-service.yml`](deploy/consul/kv/ping-service.yml)), so
+capacity and flush interval can be changed under load without a redeploy.
+
+### Delivery guarantees, stated plainly
+
+The in-memory buffer is what makes the throughput possible, and it is **lossy by design**:
+
+- A fix acknowledged with 202 but still in memory is lost if the process is killed — `SIGTERM`
+  drains it, `SIGKILL` does not.
+- Confirms are asynchronous, so a nacked batch is counted and logged, not retried.
+- Once the broker has a batch, the queue is durable and delivery to History is at-least-once.
+
+The alternative — acknowledging only after a confirmed publish — costs a broker round trip per
+request and is the right trade for a payments system, not for location pings where the next fix is a
+second away.
+
+*Verify:* `./scripts/build.sh -pl services/ping-service -am test` → `LocationAdmissionTest` (5) and
+`PingMetricsTest` (3); 22 ping-service unit tests in total, none needing Docker.
 
 <!-- next-commit-log-entry -->

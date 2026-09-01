@@ -1,5 +1,7 @@
 package com.rls.gps.ping.config;
 
+import com.rls.gps.ping.metrics.PingMetrics;
+import com.rls.gps.ping.publish.LocationAdmission;
 import com.rls.gps.ping.publish.LocationBatchSink;
 import com.rls.gps.ping.publish.LocationBuffer;
 import com.rls.gps.ping.publish.LocationBufferFlusher;
@@ -16,9 +18,16 @@ public class BufferConfiguration {
     }
 
     @Bean
+    public LocationAdmission locationAdmission(LocationBuffer buffer, PingProperties properties) {
+        return new LocationAdmission(buffer, properties.buffer().overflowPolicy());
+    }
+
+    @Bean
     public LocationBufferFlusher locationBufferFlusher(LocationBuffer buffer,
                                                        LocationBatchSink sink,
+                                                       PingMetrics metrics,
                                                        PingProperties properties) {
-        return new LocationBufferFlusher(buffer, sink, properties.buffer().shutdownTimeout().toMillis());
+        return new LocationBufferFlusher(buffer, sink, metrics,
+                properties.buffer().shutdownTimeout().toMillis());
     }
 }

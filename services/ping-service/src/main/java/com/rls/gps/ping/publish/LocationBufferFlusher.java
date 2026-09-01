@@ -5,6 +5,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import com.rls.gps.messaging.LocationMessage;
+import com.rls.gps.ping.metrics.PingMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
@@ -23,15 +24,18 @@ public class LocationBufferFlusher implements SmartLifecycle {
 
     private final LocationBuffer buffer;
     private final LocationBatchSink sink;
+    private final PingMetrics metrics;
     private final long shutdownTimeoutMillis;
 
     private volatile boolean running;
     private Thread worker;
     private final CountDownLatch stopped = new CountDownLatch(1);
 
-    public LocationBufferFlusher(LocationBuffer buffer, LocationBatchSink sink, long shutdownTimeoutMillis) {
+    public LocationBufferFlusher(LocationBuffer buffer, LocationBatchSink sink, PingMetrics metrics,
+                                 long shutdownTimeoutMillis) {
         this.buffer = buffer;
         this.sink = sink;
+        this.metrics = metrics;
         this.shutdownTimeoutMillis = shutdownTimeoutMillis;
     }
 
@@ -69,7 +73,9 @@ public class LocationBufferFlusher implements SmartLifecycle {
     private void publish(List<LocationMessage> batch) {
         try {
             sink.send(batch);
+            metrics.batchPublished();
         } catch (RuntimeException ex) {
+            metrics.batchFailed();
             log.error("location_batch_publish_failed size={} - batch dropped", batch.size(), ex);
         }
     }

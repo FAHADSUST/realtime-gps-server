@@ -1,8 +1,10 @@
 package com.rls.gps.ping.config;
 
+import com.rls.gps.ping.metrics.PingMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
@@ -21,7 +23,9 @@ public class RabbitConfiguration {
      * confirm and return callbacks turn both into log lines and (from C7.4) metrics.
      */
     @Bean
-    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter messageConverter) {
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory,
+                                         MessageConverter messageConverter,
+                                         ObjectProvider<PingMetrics> metrics) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
         template.setMessageConverter(messageConverter);
 
@@ -30,14 +34,17 @@ public class RabbitConfiguration {
 
         template.setConfirmCallback((correlation, acknowledged, reason) -> {
             if (!acknowledged) {
+                metrics.ifAvailable(PingMetrics::batchNacked);
                 log.error("location_batch_nacked batchId={} reason={}",
                         correlation != null ? correlation.getId() : "unknown", reason);
             }
         });
 
-        template.setReturnsCallback(returned ->
-                log.error("location_batch_unroutable exchange={} routingKey={} reply={}",
-                        returned.getExchange(), returned.getRoutingKey(), returned.getReplyText()));
+        template.setReturnsCallback(returned -> {
+            metrics.ifAvailable(PingMetrics::batchNacked);
+            log.error("location_batch_unroutable exchange={} routingKey={} reply={}",
+                    returned.getExchange(), returned.getRoutingKey(), returned.getReplyText());
+        });
 
         return template;
     }

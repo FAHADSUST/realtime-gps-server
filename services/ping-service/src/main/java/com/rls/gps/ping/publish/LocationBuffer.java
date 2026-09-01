@@ -62,6 +62,15 @@ public class LocationBuffer {
         return batch;
     }
 
+    /**
+     * Discards the oldest queued fix to make room.
+     *
+     * @return true when something was actually discarded
+     */
+    public boolean discardOldest() {
+        return queue.poll() != null;
+    }
+
     /** Everything still queued, in batches - used to empty the buffer during shutdown. */
     public List<List<LocationMessage>> drainRemaining() {
         List<List<LocationMessage>> batches = new ArrayList<>();
