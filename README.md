@@ -1146,4 +1146,29 @@ Two failure modes handled deliberately:
 `LocationBufferFlusherTest` (5) — including shutdown drain and sink-failure recovery. **No Docker
 needed**: the flusher publishes to an interface, so the tests use a collecting stub.
 
+### C7.3 — The write path, connected end to end
+
+`POST /api/v1/locations` now hands the whole batch to the buffer after updating Redis. The split the
+spec describes is now real:
+
+| Destination | What it gets | Why |
+|---|---|---|
+| Redis | only the newest fix | the current position, read constantly |
+| RabbitMQ | **every** fix | the track, written once and read rarely |
+
+The response gained a `dropped` count:
+
+```json
+{ "accepted": 3, "dropped": 0, "lastLocationUpdated": true }
+```
+
+**Dropped fixes are reported, not hidden.** When the buffer is full the platform is shedding load,
+and a client that sees `dropped > 0` knows its history has a gap. Silently returning 202 for data
+that was thrown away would be the more comfortable lie.
+
+*Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `LocationPipelineIT` (3 tests):
+all three fixes of a batch reach the queue while Redis keeps only the newest, published fixes carry
+the gateway-verified identity, and 40 single-fix requests are published as far fewer than 40
+messages.
+
 <!-- next-commit-log-entry -->

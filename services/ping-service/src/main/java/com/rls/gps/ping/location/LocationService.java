@@ -11,7 +11,9 @@ import java.util.stream.Collectors;
 
 import com.rls.gps.common.error.ApiExceptions;
 import com.rls.gps.common.security.Identity;
+import com.rls.gps.messaging.LocationMessage;
 import com.rls.gps.ping.config.PingProperties;
+import com.rls.gps.ping.publish.LocationBuffer;
 import com.rls.gps.ping.location.dto.LastLocationsResponse;
 import com.rls.gps.ping.location.dto.LocationBatchRequest;
 import com.rls.gps.ping.location.dto.LocationBatchResponse;
@@ -26,11 +28,16 @@ public class LocationService {
     private static final Logger log = LoggerFactory.getLogger(LocationService.class);
 
     private final LastLocationRepository lastLocations;
+    private final LocationBuffer buffer;
     private final Clock clock;
     private final Duration maxClockSkew;
 
-    public LocationService(LastLocationRepository lastLocations, Clock clock, PingProperties properties) {
+    public LocationService(LastLocationRepository lastLocations,
+                           LocationBuffer buffer,
+                           Clock clock,
+                           PingProperties properties) {
         this.lastLocations = lastLocations;
+        this.buffer = buffer;
         this.clock = clock;
         this.maxClockSkew = properties.maxClockSkew();
     }
@@ -58,7 +65,34 @@ public class LocationService {
                     caller.companyId(), caller.userId());
         }
 
-        return new LocationBatchResponse(points.size(), updated);
+        int dropped = buffer(caller, points, receivedAt);
+        return new LocationBatchResponse(points.size() - dropped, dropped, updated);
+    }
+
+    /**
+     * Hands the whole batch to the buffer for the History service.
+     *
+     * <p>Every fix goes to the queue, not just the newest: Redis holds the current position, the
+     * queue carries the track. The request returns once they are in memory - durable storage is the
+     * History service's job.
+     */
+    private int buffer(Identity caller, List<LocationPoint> points, Instant receivedAt) {
+        int dropped = 0;
+        for (LocationPoint point : points) {
+            LocationMessage message = new LocationMessage(caller.companyId(), caller.userId(),
+                    point.latitude(), point.longitude(), point.recordedAt(), receivedAt,
+                    point.accuracy(), point.speed(), point.heading());
+
+            if (!buffer.offer(message)) {
+                dropped++;
+            }
+        }
+
+        if (dropped > 0) {
+            log.warn("location_buffer_full companyId={} userId={} dropped={} bufferSize={}",
+                    caller.companyId(), caller.userId(), dropped, buffer.size());
+        }
+        return dropped;
     }
 
     /**
