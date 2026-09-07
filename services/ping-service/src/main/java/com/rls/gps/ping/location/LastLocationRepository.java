@@ -4,12 +4,22 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rls.gps.ping.config.PingProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.geo.Distance;
+import org.springframework.data.geo.GeoResult;
+import org.springframework.data.geo.GeoResults;
+import org.springframework.data.geo.Point;
+import org.springframework.data.redis.connection.RedisGeoCommands.GeoLocation;
+import org.springframework.data.redis.connection.RedisGeoCommands.GeoSearchCommandArgs;
+import org.springframework.data.redis.domain.geo.GeoReference;
+import org.springframework.data.redis.domain.geo.GeoShape;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
@@ -31,6 +41,12 @@ import org.springframework.stereotype.Repository;
 public class LastLocationRepository {
 
     private static final Logger log = LoggerFactory.getLogger(LastLocationRepository.class);
+
+    /** Ask the index for more than the caller wants, because expired members will be discarded. */
+    private static final int STALE_OVERFETCH_FACTOR = 2;
+
+    /** Hard ceiling on one geo scan, so a huge radius cannot pull an entire company into memory. */
+    private static final long MAX_GEO_SCAN = 2000;
 
     private final StringRedisTemplate redis;
     private final RedisScript<Long> upsertScript;
@@ -92,6 +108,77 @@ public class LastLocationRepository {
             deserialize(value).ifPresent(stored -> locations.add(stored.toLastLocation()));
         }
         return locations;
+    }
+
+    /**
+     * Users whose last known position falls inside the radius, nearest first.
+     *
+     * <p>The geo index can name users whose location key has since expired - Redis has no per-member
+     * TTL - so every hit is checked against the location itself, and members that no longer have one
+     * are removed on the way past. That keeps the index from growing forever with devices that
+     * stopped reporting months ago, without a sweeper job.
+     *
+     * <p>Consequence worth knowing: the index is searched for more members than requested, because
+     * some will be discarded. With an unusual number of expired members a query can still return
+     * fewer than {@code limit} users while more exist further out; answering that exactly needs a
+     * cursor, which the endpoint does not offer.
+     */
+    public List<NearbyUser> findWithinRadius(String companyId, double latitude, double longitude,
+                                             double radius, RadiusUnit unit, int limit) {
+        GeoSearchCommandArgs args = GeoSearchCommandArgs.newGeoSearchArgs()
+                .includeDistance()
+                .sortAscending()
+                .limit(Math.min((long) limit * STALE_OVERFETCH_FACTOR, MAX_GEO_SCAN));
+
+        GeoResults<GeoLocation<String>> results = redis.opsForGeo().search(
+                geoKey(companyId),
+                GeoReference.fromCoordinate(new Point(longitude, latitude)),
+                GeoShape.byRadius(new Distance(radius, unit.metric())),
+                args);
+
+        if (results == null || results.getContent().isEmpty()) {
+            return List.of();
+        }
+
+        List<String> userIds = results.getContent().stream()
+                .map(result -> result.getContent().getName())
+                .toList();
+
+        Map<String, LastLocation> live = findByUserIds(companyId, userIds).stream()
+                .collect(Collectors.toMap(LastLocation::userId, location -> location));
+
+        List<NearbyUser> nearby = new ArrayList<>(Math.min(limit, userIds.size()));
+        List<String> expired = new ArrayList<>();
+
+        for (GeoResult<GeoLocation<String>> result : results.getContent()) {
+            String userId = result.getContent().getName();
+            LastLocation location = live.get(userId);
+
+            if (location == null) {
+                expired.add(userId);
+                continue;
+            }
+            if (nearby.size() < limit) {
+                nearby.add(new NearbyUser(location, result.getDistance().getValue()));
+            }
+        }
+
+        evictExpired(companyId, expired);
+        return nearby;
+    }
+
+    /** Lazy cleanup: a member whose location expired can never be a useful search hit again. */
+    private void evictExpired(String companyId, List<String> expired) {
+        if (expired.isEmpty()) {
+            return;
+        }
+        try {
+            redis.opsForZSet().remove(geoKey(companyId), expired.toArray());
+            log.debug("geo_members_evicted companyId={} count={}", companyId, expired.size());
+        } catch (RuntimeException ex) {
+            // Cleanup is opportunistic; failing it must not fail the caller's query.
+            log.warn("geo_member_eviction_failed companyId={} count={}", companyId, expired.size(), ex);
+        }
     }
 
     String lastLocationKey(String companyId, String userId) {

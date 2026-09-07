@@ -1214,4 +1214,30 @@ second away.
 *Verify:* `./scripts/build.sh -pl services/ping-service -am test` → `LocationAdmissionTest` (5) and
 `PingMetricsTest` (3); 22 ping-service unit tests in total, none needing Docker.
 
+### C8.1 — Radius search over the geo index
+
+`findWithinRadius` runs `GEOSEARCH` against the per-company geo set, nearest first, and resolves each
+hit to the stored location.
+
+**This is where C6.2's loose end gets tied.** Redis has no per-member TTL for geo sets, so the index
+can name users whose location key expired hours ago. Every hit is therefore checked against the
+location itself — and members that no longer have one are **removed on the way past**. The index
+stops growing forever with devices that stopped reporting, and no sweeper job is needed to do it.
+Eviction failures are swallowed: cleanup is opportunistic and must never fail the caller's query.
+
+Two consequences stated rather than hidden:
+
+- The index is searched for **twice** the requested number of members, since some will be discarded.
+  With an unusual number of expired members a query can still return fewer than `limit` users while
+  more exist further out; answering that exactly needs a cursor.
+- One scan is capped at 2000 members, so a continent-sized radius cannot pull an entire company into
+  memory.
+
+Units are an enum (`M`, `KM`, `MI`, `FT`) so an unknown unit is a 400 rather than a silent
+reinterpretation. Spring Data's own `Metrics` only covers kilometres and miles — metres and feet come
+from `RedisGeoCommands.DistanceUnit`.
+
+*Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `RadiusSearchIT` (8 tests) using
+real distances around Dhaka, including the expired-member eviction case.
+
 <!-- next-commit-log-entry -->
