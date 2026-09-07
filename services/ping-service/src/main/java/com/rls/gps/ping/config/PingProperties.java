@@ -12,7 +12,15 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 @ConfigurationProperties(prefix = "gps.ping")
 public record PingProperties(@DefaultValue Redis redis,
                              @DefaultValue Buffer buffer,
+                             @DefaultValue Search search,
                              @DefaultValue("5m") Duration maxClockSkew) {
+
+    /**
+     * @param maxRadiusKm the largest radius a query may ask for, in kilometres. Checked after
+     *                    converting the caller's unit, so a huge value in metres is refused too.
+     */
+    public record Search(@DefaultValue("100") double maxRadiusKm) {
+    }
 
     /**
      * The in-memory staging area between a request and the broker.

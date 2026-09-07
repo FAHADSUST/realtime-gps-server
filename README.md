@@ -108,7 +108,7 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 | C5 | Kong gateway + `rls_auth` plugin | C5.1 – C5.5 | 🟡 config tested; runtime pending Docker¹ |
 | C6 | Ping service — Redis write path | C6.1 – C6.4 | ✅ done (ITs pending Docker¹) |
 | C7 | Ping service — buffer → RabbitMQ bulk publish | C7.1 – C7.4 | ✅ done (ITs pending Docker¹) |
-| C8 | Ping service — radius search | C8.1 – C8.2 | ⬜ planned |
+| C8 | Ping service — radius search | C8.1 – C8.2 | ✅ done (ITs pending Docker¹) |
 | C9 | History service — queue consumer → MySQL | C9.1 – C9.4 | ⬜ planned |
 | C10 | History service — history API | C10.1 – C10.2 | ⬜ planned |
 | C11 | Metadata service — CRUD | C11.1 – C11.5 | ⬜ planned |
@@ -322,6 +322,30 @@ curl -s "http://localhost:8000/api/v1/locations?userIds=user-1,user-2" -H "Autho
 
 Up to 100 users per call, scoped to the caller's company, one `MGET` behind the scenes. Users with
 nothing stored come back in `missing` rather than being silently dropped.
+
+### `GET /api/v1/locations/users?lat=&lon=&radius=&unit=&limit=`
+
+```bash
+curl -s "http://localhost:8000/api/v1/locations/users?lat=23.7381&lon=90.3956&radius=5&unit=KM" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "latitude": 23.7381, "longitude": 90.3956, "radius": 5.0, "unit": "KM", "count": 2,
+  "users": [
+    { "userId": "at-shahbagh", "latitude": 23.7381, "longitude": 90.3956,
+      "recordedAt": "2026-09-16T10:00:00Z", "receivedAt": "2026-09-16T10:00:01Z", "distance": 0.0 },
+    { "userId": "in-dhanmondi", "latitude": 23.7461, "longitude": 90.3742,
+      "recordedAt": "2026-09-16T09:58:12Z", "receivedAt": "2026-09-16T09:58:13Z", "distance": 2.31 }
+  ]
+}
+```
+
+Nearest first, company-scoped, `unit` ∈ `M|KM|MI|FT` (default `KM`), `limit` ≤ 100 (default 50).
+A device that stopped reporting drops out once its entry expires rather than haunting the map at its
+final position. The radius ceiling (`gps.ping.search.max-radius-km`, default 100 km) is checked
+**after converting to kilometres**, so `radius=5000000&unit=M` is refused exactly like `radius=5000`.
 
 ### Redis key schema
 
@@ -1239,5 +1263,22 @@ from `RedisGeoCommands.DistanceUnit`.
 
 *Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `RadiusSearchIT` (8 tests) using
 real distances around Dhaka, including the expired-member eviction case.
+
+### C8.2 — `GET /api/v1/locations/users`
+
+The spec's "retrieve all users within a specific radius", now reachable through Kong.
+
+The one judgement worth recording: **the maximum radius is enforced in kilometres, not in the unit
+the caller used.** A cap written per unit is a cap in name only — `radius=5000000&unit=M` is the same
+5000 km as `radius=5000&unit=KM`, and would sail past a naive `radius <= 100` check. `RadiusUnit`
+converts first; both requests get the same `radius_too_large`.
+
+The response echoes the query (centre, radius, unit) so a cached or logged body says what question it
+was answering.
+
+This completes the ping service — ingest, last-known position, bulk publish, and radius search.
+
+*Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `RadiusUnitTest` (2, no Docker)
+and `NearbyUsersEndpointIT` (8), including the same oversized radius refused in two different units.
 
 <!-- next-commit-log-entry -->

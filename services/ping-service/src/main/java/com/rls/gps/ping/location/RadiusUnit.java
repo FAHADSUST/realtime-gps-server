@@ -26,4 +26,17 @@ public enum RadiusUnit {
     public Metric metric() {
         return metric;
     }
+
+    /**
+     * Converts a radius in this unit to kilometres, so one configured ceiling can bound a query
+     * whatever unit it was written in - a cap expressed per unit would let "5000000 m" through.
+     */
+    public double toKilometres(double radius) {
+        return switch (this) {
+            case M -> radius / 1_000d;
+            case KM -> radius;
+            case MI -> radius * 1.609344d;
+            case FT -> radius * 0.0003048d;
+        };
+    }
 }

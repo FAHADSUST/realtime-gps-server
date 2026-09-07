@@ -16,6 +16,7 @@ import com.rls.gps.ping.config.PingProperties;
 import com.rls.gps.ping.metrics.PingMetrics;
 import com.rls.gps.ping.publish.LocationAdmission;
 import com.rls.gps.ping.location.dto.LastLocationsResponse;
+import com.rls.gps.ping.location.dto.NearbyUsersResponse;
 import com.rls.gps.ping.location.dto.LocationBatchRequest;
 import com.rls.gps.ping.location.dto.LocationBatchResponse;
 import com.rls.gps.ping.location.dto.LocationPointRequest;
@@ -33,6 +34,7 @@ public class LocationService {
     private final PingMetrics metrics;
     private final Clock clock;
     private final Duration maxClockSkew;
+    private final double maxRadiusKm;
 
     public LocationService(LastLocationRepository lastLocations,
                            LocationAdmission admission,
@@ -44,6 +46,7 @@ public class LocationService {
         this.metrics = metrics;
         this.clock = clock;
         this.maxClockSkew = properties.maxClockSkew();
+        this.maxRadiusKm = properties.search().maxRadiusKm();
     }
 
     /**
@@ -114,6 +117,26 @@ public class LocationService {
         List<String> missing = requested.stream().filter(id -> !foundIds.contains(id)).toList();
 
         return new LastLocationsResponse(found, missing);
+    }
+
+    /**
+     * Users within a radius of a point, scoped to the caller's company.
+     *
+     * <p>The radius ceiling is checked in kilometres rather than in the caller's unit, so
+     * {@code 5000000 m} is refused exactly like {@code 5000 km}.
+     */
+    public NearbyUsersResponse nearbyUsers(Identity caller, double latitude, double longitude,
+                                           double radius, RadiusUnit unit, int limit) {
+        double radiusKm = unit.toKilometres(radius);
+        if (radiusKm > maxRadiusKm) {
+            throw ApiExceptions.badRequest("radius_too_large",
+                    "radius must be at most " + maxRadiusKm + " km");
+        }
+
+        List<NearbyUser> nearby =
+                lastLocations.findWithinRadius(caller.companyId(), latitude, longitude, radius, unit, limit);
+
+        return NearbyUsersResponse.of(latitude, longitude, radius, unit, nearby);
     }
 
     private LocationPoint toPoint(LocationPointRequest request, Instant receivedAt) {

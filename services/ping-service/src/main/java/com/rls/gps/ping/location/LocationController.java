@@ -7,8 +7,14 @@ import com.rls.gps.common.security.Identity;
 import com.rls.gps.ping.location.dto.LastLocationsResponse;
 import com.rls.gps.ping.location.dto.LocationBatchRequest;
 import com.rls.gps.ping.location.dto.LocationBatchResponse;
+import com.rls.gps.ping.location.dto.NearbyUsersResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
@@ -57,6 +63,23 @@ public class LocationController {
      * <p>Accepts {@code ?userIds=a,b,c} or repeated {@code ?userIds=} parameters. The cap exists
      * because this is a fan-out read: unbounded, one request could ask for every user a company has.
      */
+    /**
+     * The spec's "retrieve all users within a specific radius", scoped to the caller's company.
+     *
+     * <p>Only users with a live last location are returned: a device that stopped reporting drops
+     * out once its entry expires, rather than haunting the map at its final position.
+     */
+    @GetMapping("/users")
+    public NearbyUsersResponse nearbyUsers(
+            @CurrentIdentity Identity caller,
+            @RequestParam @DecimalMin("-90.0") @DecimalMax("90.0") double lat,
+            @RequestParam @DecimalMin("-180.0") @DecimalMax("180.0") double lon,
+            @RequestParam @Positive double radius,
+            @RequestParam(defaultValue = "KM") RadiusUnit unit,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(MAX_USERS_PER_QUERY) int limit) {
+        return locationService.nearbyUsers(caller, lat, lon, radius, unit, limit);
+    }
+
     @GetMapping
     public LastLocationsResponse lastLocations(
             @CurrentIdentity Identity caller,
