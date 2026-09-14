@@ -31,6 +31,21 @@ spring:
         health-check-path: /actuator/health
         health-check-interval: 10s
 
+  datasource:
+    # rewriteBatchedStatements is what makes a batch insert one statement instead of N round trips;
+    # without it the consumer's throughput collapses to one insert per fix.
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:gps_history}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&rewriteBatchedStatements=true
+    username: ${MYSQL_USER:gps_history}
+    password: ${MYSQL_PASSWORD:gps_history_pw}
+    hikari:
+      pool-name: history-hikari
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+
 server:
   port: ${SERVER_PORT:8083}
   shutdown: graceful

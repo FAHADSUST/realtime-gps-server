@@ -1289,4 +1289,38 @@ boots and is tested with no container at all.
 
 *Verify:* `./scripts/build.sh -pl services/history-service -am test` → 1 test.
 
+### C9.2 — The `user_location` table and batch insert
+
+Where every accepted fix ends up.
+
+**One index does two jobs.** `UNIQUE (company_id, user_id, recorded_at)` is the idempotency
+mechanism — a redelivered batch re-inserts rows that already exist and
+`ON DUPLICATE KEY UPDATE id = id` turns those into no-ops — *and*, because of its column order, it is
+the index every history query (C10) will read through. One index on the fastest-growing table
+instead of two. The cost, stated: two genuinely distinct fixes for one user in the same millisecond
+collapse into one. For GPS that is deduplication, not loss.
+
+**JDBC, not JPA.** This service appends batches millions of times a day; entities, dirty checking and
+a persistence context cost something and buy nothing. The read side is a keyset query that would be
+hand-written anyway.
+
+Two details that matter more than they look:
+
+- **`rewriteBatchedStatements=true`** in the JDBC URL is what turns a batch into one multi-row
+  statement instead of N round trips. Without it the consumer's throughput collapses to one insert
+  per fix — the same code, an order of magnitude slower.
+- **`insertAll` returns the number submitted, not the number of new rows.** With statement rewriting
+  MySQL reports `SUCCESS_NO_INFO` per row; a per-row count would be a guess dressed as a number.
+
+Timestamps are converted to `LocalDateTime` in UTC explicitly rather than handed to the driver as an
+`Instant`: left to the JVM's default zone, the same fix lands at a different time depending on where
+the service runs.
+
+The skeleton's plain `@SpringBootTest` became an IT here. Unlike a Redis client, which connects
+lazily, Flyway runs at startup — so "does it boot" genuinely needs a database, and the question moved
+rather than being weakened.
+
+*Verify:* `./scripts/build.sh -pl services/history-service -am verify` → `LocationHistoryRepositoryIT`
+(7 tests) including triple-delivery of the same batch leaving two rows.
+
 <!-- next-commit-log-entry -->
