@@ -153,6 +153,30 @@ services:
     restart: unless-stopped
     networks: [gps-net]
 
+  history-service:
+    build:
+      context: ../services/history-service
+      dockerfile: Dockerfile
+    image: gps/history-service:local
+    container_name: gps-history-service
+    environment:
+      CONSUL_HOST: consul
+      CONSUL_PORT: 8500
+      SERVER_PORT: 8083
+    ports:
+      - "${HISTORY_SERVICE_PORT:-8083}:8083"
+    depends_on:
+      consul:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
+    restart: unless-stopped
+    networks: [gps-net]
+
   kong:
     image: kong:3.9
     container_name: gps-kong

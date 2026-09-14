@@ -1281,4 +1281,12 @@ This completes the ping service — ingest, last-known position, bulk publish, a
 *Verify:* `./scripts/build.sh -pl services/ping-service -am verify` → `RadiusUnitTest` (2, no Docker)
 and `NearbyUsersEndpointIT` (8), including the same oversized radius refused in two different units.
 
+### C9.1 — History service skeleton
+
+The fourth and last service, in the shape the other two started in: Consul config and discovery, a
+Dockerfile, a Compose entry, `GET /api/v1/ping` from `gps-common`, and no infrastructure yet — so it
+boots and is tested with no container at all.
+
+*Verify:* `./scripts/build.sh -pl services/history-service -am test` → 1 test.
+
 <!-- next-commit-log-entry -->

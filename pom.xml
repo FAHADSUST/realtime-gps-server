@@ -24,6 +24,7 @@
         <module>libs/gps-messaging</module>
         <module>services/id-service</module>
         <module>services/ping-service</module>
+        <module>services/history-service</module>
         <module>gateway/kong</module>
     </modules>
 
