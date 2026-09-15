@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -31,11 +32,19 @@ public abstract class AbstractHistoryServiceIT {
             .withUrlParam("rewriteBatchedStatements", "true")
             .withUrlParam("serverTimezone", "UTC");
 
+    @Container
+    static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:4-management");
+
     @DynamicPropertySource
-    static void datasourceProperties(DynamicPropertyRegistry registry) {
+    static void infrastructureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
+
+        registry.add("spring.rabbitmq.host", RABBIT::getHost);
+        registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
+        registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);
+        registry.add("spring.rabbitmq.password", RABBIT::getAdminPassword);
     }
 
     @Autowired

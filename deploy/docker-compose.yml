@@ -162,10 +162,23 @@ services:
     environment:
       CONSUL_HOST: consul
       CONSUL_PORT: 8500
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: gps_history
+      MYSQL_USER: gps_history
+      MYSQL_PASSWORD: gps_history_pw
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: gps
+      RABBITMQ_PASSWORD: gps_pw
       SERVER_PORT: 8083
     ports:
       - "${HISTORY_SERVICE_PORT:-8083}:8083"
     depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
       consul:
         condition: service_healthy
     healthcheck:

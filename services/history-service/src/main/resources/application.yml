@@ -31,6 +31,23 @@ spring:
         health-check-path: /actuator/health
         health-check-interval: 10s
 
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:gps}
+    password: ${RABBITMQ_PASSWORD:gps_pw}
+    listener:
+      simple:
+        # AUTO: the container acks when the listener returns and rejects when it throws.
+        acknowledge-mode: auto
+        # Batches are large, so a small prefetch is plenty and keeps work spread across consumers.
+        prefetch: 4
+        concurrency: 2
+        max-concurrency: 8
+        # Never requeue a rejected batch: without this a failing message loops forever, being
+        # redelivered to the same code that just failed on it. It goes to the dead-letter queue.
+        default-requeue-rejected: false
+
   datasource:
     # rewriteBatchedStatements is what makes a batch insert one statement instead of N round trips;
     # without it the consumer's throughput collapses to one insert per fix.

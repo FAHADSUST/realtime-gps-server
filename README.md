@@ -1323,4 +1323,26 @@ rather than being weakened.
 *Verify:* `./scripts/build.sh -pl services/history-service -am verify` → `LocationHistoryRepositoryIT`
 (7 tests) including triple-delivery of the same batch leaving two rows.
 
+### C9.3 — Consuming the queue
+
+The pipeline now has both ends: the ping service publishes batches, and
+[`LocationBatchConsumer`](services/history-service/src/main/java/com/rls/gps/history/consume/LocationBatchConsumer.java)
+turns them into rows.
+
+- **Acknowledgement is Spring's AUTO mode, not MANUAL.** The container acks when the listener returns
+  and rejects when it throws — exactly the semantics wanted, without the commonest hand-rolled-ack
+  bug: a path that returns without acking and quietly stalls the queue.
+- **The unit of work is the whole batch.** Per-fix inserts would give finer-grained failure and undo
+  the batching the ping service went to such trouble to create.
+- **`default-requeue-rejected: false`.** Without it a failing batch is redelivered to the same code
+  that just failed on it, forever. It goes to the dead-letter queue instead — retry policy arrives in
+  C9.4.
+- **An empty batch is acknowledged, not retried.** There is nothing to store and nothing a retry
+  would fix.
+- The wire type is mapped to a separate storage type, so the table doesn't change shape because a
+  field on the queue was renamed.
+
+*Verify:* `./scripts/build.sh -pl services/history-service -am verify` → `LocationBatchConsumerIT`
+(4 tests), including five batches of twenty landing as exactly 100 rows.
+
 <!-- next-commit-log-entry -->
