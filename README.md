@@ -109,7 +109,7 @@ The requirements are in [`GPS SERVER.md`](GPS%20SERVER.md).
 | C6 | Ping service — Redis write path | C6.1 – C6.4 | ✅ done (ITs pending Docker¹) |
 | C7 | Ping service — buffer → RabbitMQ bulk publish | C7.1 – C7.4 | ✅ done (ITs pending Docker¹) |
 | C8 | Ping service — radius search | C8.1 – C8.2 | ✅ done (ITs pending Docker¹) |
-| C9 | History service — queue consumer → MySQL | C9.1 – C9.4 | ⬜ planned |
+| C9 | History service — queue consumer → MySQL | C9.1 – C9.4 | ✅ done (ITs pending Docker¹) |
 | C10 | History service — history API | C10.1 – C10.2 | ⬜ planned |
 | C11 | Metadata service — CRUD | C11.1 – C11.5 | ⬜ planned |
 | C12 | Metadata service — MATCH/EXCEPT/ANY/ALL search | C12.1 – C12.5 | ⬜ planned |
@@ -362,6 +362,45 @@ which refuses to replace a newer fix with an older one.
 | `gps.ping.redis.key-prefix` | `gps` | namespace for every key |
 | `gps.ping.redis.last-location-ttl` | `24h` | how long a silent user stays visible |
 | `gps.ping.max-clock-skew` | `5m` | how far into the future a `recordedAt` may be |
+
+---
+
+## History service — `services/history-service`
+
+The queue's only consumer and the platform's durable record. Fixes arrive in batches from the ping
+service and are appended to `user_location`.
+
+### Storage
+
+| Column | Notes |
+|---|---|
+| `company_id`, `user_id`, `recorded_at` | **`UNIQUE`** — the idempotency key *and* the query index |
+| `latitude`, `longitude` | `DOUBLE` |
+| `received_at` | when the platform accepted the fix; the gap from `recorded_at` shows how far behind a device was |
+| `accuracy`, `speed`, `heading` | nullable — unknown stays unknown rather than becoming zero |
+
+Plain JDBC with `rewriteBatchedStatements=true`: the whole batch goes in one multi-row statement.
+Re-inserting an existing row is a no-op (`ON DUPLICATE KEY UPDATE id = id`), which is what makes an
+at-least-once queue safe to consume.
+
+### Failure handling
+
+| Situation | What happens |
+|---|---|
+| Malformed fix (no owner, NaN, off the globe) | **Dropped and counted**, batch still stored — retrying can't fix a producer bug |
+| Empty batch | Acknowledged |
+| Database or broker failure | Exception propagates → 3 retries with backoff → dead-letter queue |
+| Unreadable message | Straight to the dead-letter queue; it can never be parsed |
+| Redelivery | Re-inserts the same rows; the unique key makes it a no-op |
+
+Dead-lettered batches land on `gps.location.history.dlq` **with the exception message and stack trace
+in headers** (`RepublishMessageRecoverer`), so triage starts with a reason rather than a base64 blob.
+
+| Metric | Meaning |
+|---|---|
+| `gps.history.batches.consumed` | batches taken off the queue |
+| `gps.history.fixes.stored` | fixes written |
+| `gps.history.fixes.rejected` | fixes discarded as unstorable — a rising count means a producer is sending rubbish, not that anything is down |
 
 ---
 
@@ -1344,5 +1383,32 @@ turns them into rows.
 
 *Verify:* `./scripts/build.sh -pl services/history-service -am verify` → `LocationBatchConsumerIT`
 (4 tests), including five batches of twenty landing as exactly 100 rows.
+
+### C9.4 — Poison data, retries and the dead-letter queue
+
+The consumer now draws the distinction that decides everything else about its failure handling:
+
+> **Poison data** — a fix with no owner, a NaN coordinate, a latitude of 999 — will never become
+> storable, however many times it is retried. **Transient failure** — the database down, the broker
+> failing over — will succeed on the next attempt.
+
+Treating them the same way gives you one of two bad outcomes: retrying a producer's bug forever, or
+dead-lettering a 500-fix batch because MySQL blinked. So malformed fixes are **dropped, counted and
+logged** while the rest of the batch is stored, and anything thrown from the insert is transient by
+elimination — retried three times with backoff, then dead-lettered.
+
+- **One malformed fix costs only itself**, not the 499 good ones beside it.
+- **Retries are few and short.** A consumer that never gives up holds its prefetch and stalls the
+  queue behind it; a longer outage is handled by the dead-letter queue and a replay.
+- **`RepublishMessageRecoverer`** puts the exception message and stack trace into the dead-lettered
+  message's headers — the difference between a DLQ you can act on and one you can only stare at.
+- `gps.history.fixes.rejected` is its own counter: a rising reject count is a *producer* problem, a
+  different call-out from the broker or database being unhealthy.
+
+This completes the History service's write path.
+
+*Verify:* `./scripts/build.sh -pl services/history-service -am verify` → `FixValidationTest` (7, no
+Docker) and `PoisonMessageIT` (4), including an unreadable message reaching the DLQ and the queue
+still working afterwards.
 
 <!-- next-commit-log-entry -->

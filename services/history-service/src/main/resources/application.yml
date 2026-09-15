@@ -47,6 +47,15 @@ spring:
         # Never requeue a rejected batch: without this a failing message loops forever, being
         # redelivered to the same code that just failed on it. It goes to the dead-letter queue.
         default-requeue-rejected: false
+        retry:
+          # A few quick attempts absorb a blip - a failover, a brief lock. A longer outage is
+          # handled by the dead-letter queue and a replay, not by retrying forever: a consumer that
+          # never gives up holds its prefetch and stalls the queue behind it.
+          enabled: true
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 10s
+          max-attempts: 3
 
   datasource:
     # rewriteBatchedStatements is what makes a batch insert one statement instead of N round trips;

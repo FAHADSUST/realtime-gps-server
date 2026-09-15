@@ -1,9 +1,11 @@
 package com.rls.gps.history.consume;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.rls.gps.history.location.LocationFix;
 import com.rls.gps.history.location.LocationHistoryRepository;
+import com.rls.gps.history.metrics.HistoryMetrics;
 import com.rls.gps.messaging.LocationBatchMessage;
 import com.rls.gps.messaging.LocationMessage;
 import com.rls.gps.messaging.LocationTopology;
@@ -29,9 +31,11 @@ public class LocationBatchConsumer {
     private static final Logger log = LoggerFactory.getLogger(LocationBatchConsumer.class);
 
     private final LocationHistoryRepository repository;
+    private final HistoryMetrics metrics;
 
-    public LocationBatchConsumer(LocationHistoryRepository repository) {
+    public LocationBatchConsumer(LocationHistoryRepository repository, HistoryMetrics metrics) {
         this.repository = repository;
+        this.metrics = metrics;
     }
 
     @RabbitListener(queues = LocationTopology.QUEUE)
@@ -42,13 +46,28 @@ public class LocationBatchConsumer {
             return;
         }
 
-        List<LocationFix> fixes = batch.locations().stream()
-                .map(LocationBatchConsumer::toFix)
-                .toList();
+        List<LocationFix> storable = new ArrayList<>(batch.locations().size());
+        int rejected = 0;
 
-        int stored = repository.insertAll(fixes);
+        for (LocationMessage fix : batch.locations()) {
+            String reason = FixValidation.rejectionReason(fix);
+            if (reason == null) {
+                storable.add(toFix(fix));
+            } else {
+                // Dropped, not dead-lettered: one malformed fix must not cost the 499 good ones
+                // beside it, and retrying it would never help.
+                rejected++;
+                log.warn("location_fix_rejected batchId={} reason={}", batch.batchId(), reason);
+            }
+        }
 
-        log.debug("location_batch_stored batchId={} size={}", batch.batchId(), stored);
+        // Anything thrown from here is transient by elimination - the broker or the database - so
+        // letting it propagate is correct: the container retries and eventually dead-letters.
+        int stored = repository.insertAll(storable);
+
+        metrics.batchConsumed(stored, rejected);
+        log.debug("location_batch_stored batchId={} stored={} rejected={}",
+                batch.batchId(), stored, rejected);
     }
 
     private static LocationFix toFix(LocationMessage message) {
