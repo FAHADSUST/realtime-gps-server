@@ -19,6 +19,14 @@
     <name>realtime-gps</name>
     <description>Realtime GPS location platform - Spring Boot microservices</description>
 
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
     <modules>
         <module>libs/gps-common</module>
         <module>libs/gps-messaging</module>

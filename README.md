@@ -1412,3 +1412,9 @@ Docker) and `PoisonMessageIT` (4), including an unreadable message reaching the 
 still working afterwards.
 
 <!-- next-commit-log-entry -->
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Fahad Hasan.
