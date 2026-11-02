@@ -150,7 +150,7 @@ been executed against nodes yet. They are checked with yamllint and by rendering
 parsing the result — kubeadm configurations with `kubeadm config validate` from kubeadm 1.36.6,
 manifests with kubeconform, alert rules with promtool, the log pipeline with `alloy validate`. The
 Ansible syntax check and ansible-lint run in CI (`scripts/validate-platform.sh`), which has not run
-yet: nothing on this branch has been pushed.
+yet: it starts once this branch's pull request is opened.
 
 ---
 
