@@ -41,3 +41,10 @@
       - clusterissuer/{{ cluster_issuer }}
       - --timeout=3m
   changed_when: false
+
+- name: Issue the ingress default certificate
+  ansible.builtin.include_role:
+    name: kubectl_apply
+  vars:
+    kubectl_apply_name: ingress default certificate
+    kubectl_apply_manifest: "{{ lookup('ansible.builtin.template', 'default-certificate.yaml.j2') }}"

@@ -94,3 +94,10 @@
   roles:
     - role: cert_manager
   tags: [tls]
+
+- name: Trust the cluster CA on every node
+  hosts: k8s_cluster
+  become: true
+  roles:
+    - role: cluster_ca_trust
+  tags: [tls]

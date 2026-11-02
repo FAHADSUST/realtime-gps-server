@@ -1,0 +1,11 @@
+---
+- name: Update the CA bundle
+  ansible.builtin.command: update-ca-certificates
+  changed_when: true
+
+# containerd, like any Go program, reads the system CA bundle once at start-up. Containers keep
+# running across the restart.
+- name: Restart containerd to load the CA bundle
+  ansible.builtin.systemd_service:
+    name: containerd
+    state: restarted

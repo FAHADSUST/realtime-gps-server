@@ -46,6 +46,8 @@ infra/terraform/modules/**/.terraform.lock.hcl
 infra/ansible/inventory/hosts.yml
 infra/ansible/inventory/group_vars/all/vault.yml
 infra/ansible/collections/
+# Files the playbooks hand back to the operator, such as the cluster CA certificate.
+infra/ansible/artifacts/
 .vault-pass*
 *.retry
 

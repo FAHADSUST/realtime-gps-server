@@ -19,6 +19,11 @@ controller:
   # Snippet annotations would let any Ingress inject raw NGINX configuration. They stay off.
   allowSnippetAnnotations: false
 
+  # The wildcard certificate cert-manager issues for *.{{ cluster_domain }}. Until it exists the
+  # controller serves its built-in self-signed one, and picks this up once it appears.
+  extraArgs:
+    default-ssl-certificate: ingress-nginx/default-tls
+
   config:
     # Hide the NGINX version in responses and error pages.
     server-tokens: "false"
