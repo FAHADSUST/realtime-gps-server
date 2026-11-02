@@ -133,7 +133,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P2 | Ansible — node baseline, containerd, Kubernetes packages | ✅ done² ([guide](docs/on-prem/02-ansible.md)) |
 | P3 | kubeadm — HA control plane with kube-vip | ✅ done² ([guide](docs/on-prem/03-kubernetes.md)) |
 | P4 | Cilium — CNI, kube-proxy replacement, Hubble | ✅ done² ([guide](docs/on-prem/03-kubernetes.md#cilium-the-pod-network)) |
-| P5 | MetalLB — L2 address pool | ⬜ planned |
+| P5 | MetalLB — L2 address pool | ✅ done² ([guide](docs/on-prem/04-networking.md)) |
 | P6 | Longhorn — replicated storage | ⬜ planned |
 | P7 | Ingress-NGINX | ⬜ planned |
 | P8 | cert-manager — internal CA | ⬜ planned |
@@ -1498,6 +1498,16 @@ addresses. Hubble records flows; agent, operator, Envoy and Hubble metrics ship 
 with Grafana dashboards alongside. The values pass the chart's schema in `helm template`, and all 51
 rendered objects pass kubeconform. Guide:
 [03 — Kubernetes](docs/on-prem/03-kubernetes.md#cilium-the-pod-network).
+
+### P5 — MetalLB: LoadBalancer addresses in Layer 2
+
+`site.yml --tags metallb` installs MetalLB 0.16.1 in Layer 2 mode, without the BGP components the
+chart deploys by default, and configures two pools from the inventory: the ingress address alone,
+never auto-assigned, and the rest of the range for any other Service. Speakers run on workers only.
+Custom resources go through a new `kubectl_apply` role that diffs before a server-side apply, so
+re-runs report changes only when there are some; a small, unit-tested filter plugin does the
+address arithmetic. Metrics and pool-exhaustion alerts are enabled. Guide:
+[04 — Networking](docs/on-prem/04-networking.md).
 
 <!-- next-commit-log-entry -->
 

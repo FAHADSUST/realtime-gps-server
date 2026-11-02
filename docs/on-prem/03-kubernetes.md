@@ -155,6 +155,8 @@ For a thorough check, run `cilium connectivity test` from a workstation with the
 [Cilium CLI](https://github.com/cilium/cilium-cli) and this cluster's kubeconfig; it deploys test
 workloads into `cilium-test-*` namespaces, which you delete afterwards.
 
+Next: [04 — Networking](04-networking.md).
+
 **Failover test.** On the lease holder, stop kube-vip by moving its manifest away:
 
 ```bash

@@ -1,0 +1,5 @@
+---
+# Applies Kubernetes objects that are not part of a chart (pools, issuers, ...). Include the role
+# with the manifest text and a short name for the task output.
+kubectl_apply_manifest: ""
+kubectl_apply_name: manifest

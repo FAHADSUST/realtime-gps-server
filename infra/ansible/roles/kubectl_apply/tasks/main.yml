@@ -1,0 +1,30 @@
+---
+# kubectl diff exits 0 when the cluster already matches and 1 when it differs, so the apply runs -
+# and the play reports a change - only when something is actually different. Server-side apply
+# with a named field manager makes Ansible the recorded owner of these fields.
+- name: "Compare with the cluster: {{ kubectl_apply_name }}"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ kubeconfig_path }}
+      - diff
+      - --server-side
+      - --field-manager=ansible
+      - --filename=-
+    stdin: "{{ kubectl_apply_manifest }}"
+  register: kubectl_apply_diff
+  changed_when: false
+  failed_when: kubectl_apply_diff.rc > 1
+
+- name: "Apply: {{ kubectl_apply_name }}"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ kubeconfig_path }}
+      - apply
+      - --server-side
+      - --field-manager=ansible
+      - --filename=-
+    stdin: "{{ kubectl_apply_manifest }}"
+  when: kubectl_apply_diff.rc == 1
+  changed_when: true
