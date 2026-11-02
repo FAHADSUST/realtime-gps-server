@@ -5,7 +5,7 @@
 #   ansible-playbook site.yml --tags kubeadm    # one layer
 #   ansible-playbook site.yml --limit wk-04     # bring a new node in
 #
-# Tags in pipeline order: nodes, kubeadm, crds, cilium, metallb, longhorn, ingress.
+# Tags in pipeline order: nodes, kubeadm, crds, cilium, metallb, longhorn, ingress, tls.
 
 - name: Prepare every node
   hosts: k8s_cluster
@@ -87,3 +87,10 @@
   roles:
     - role: ingress_nginx
   tags: [ingress]
+
+- name: Install cert-manager and the cluster CA
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - role: cert_manager
+  tags: [tls]

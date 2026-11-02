@@ -1,0 +1,43 @@
+---
+- name: Install cert-manager
+  kubernetes.core.helm:
+    name: cert-manager
+    chart_ref: cert-manager
+    chart_repo_url: "{{ cert_manager_chart_repo }}"
+    chart_version: "{{ cert_manager_chart_version }}"
+    release_namespace: cert-manager
+    create_namespace: true
+    kubeconfig: "{{ kubeconfig_path }}"
+    release_values: "{{ lookup('ansible.builtin.template', 'values.yaml.j2') | from_yaml }}"
+    wait: true
+    timeout: 5m
+
+- name: Check that the CA brought in from outside is in place
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ kubeconfig_path }}
+      - --namespace=cert-manager
+      - get
+      - secret
+      - "{{ cluster_ca_secret }}"
+  changed_when: false
+  when: not cert_manager_self_signed_ca
+
+- name: Create the cluster CA and its issuer
+  ansible.builtin.include_role:
+    name: kubectl_apply
+  vars:
+    kubectl_apply_name: cluster CA and issuer
+    kubectl_apply_manifest: "{{ lookup('ansible.builtin.template', 'cluster-ca.yaml.j2') }}"
+
+- name: Wait for the issuer to be ready
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ kubeconfig_path }}
+      - wait
+      - --for=condition=Ready
+      - clusterissuer/{{ cluster_issuer }}
+      - --timeout=3m
+  changed_when: false

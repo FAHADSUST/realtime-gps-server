@@ -30,5 +30,10 @@ longhorn_data_path: /var/lib/longhorn
 # from here.
 monitoring_namespace: monitoring
 
+# cert-manager ClusterIssuer that signs every certificate in the cluster, and the Secret (in the
+# cert-manager namespace) holding its CA.
+cluster_issuer: rls-ca
+cluster_ca_secret: rls-root-ca
+
 # CPU architecture in the form release artefacts use (amd64, arm64).
 node_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] }}"
