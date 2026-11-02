@@ -49,7 +49,7 @@ public abstract class AbstractIdServiceIT {
     public static final String SERVER_SECRET = "test-server-secret";
 
     @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0");
+    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4");
 
     /** Random, so a test run never collides with a locally running id-service on 9081. */
     protected static final int INTERNAL_PORT = TestSocketUtils.findAvailableTcpPort();

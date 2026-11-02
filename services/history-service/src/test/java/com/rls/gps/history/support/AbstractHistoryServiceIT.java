@@ -26,7 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 public abstract class AbstractHistoryServiceIT {
 
     @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0")
+    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4")
             // The consumer's insert is only fast with statement rewriting, so the tests exercise the
             // same driver behaviour production uses.
             .withUrlParam("rewriteBatchedStatements", "true")

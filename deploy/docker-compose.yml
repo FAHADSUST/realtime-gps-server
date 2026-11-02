@@ -9,7 +9,9 @@ name: realtime-gps
 
 services:
   mysql:
-    image: mysql:8.0
+    # 8.4 LTS: 8.0 reached end of life in April 2026. An existing 8.0 data volume is upgraded in
+    # place on first start.
+    image: mysql:8.4
     container_name: gps-mysql
     command:
       - --character-set-server=utf8mb4
