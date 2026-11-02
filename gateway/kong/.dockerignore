@@ -1,0 +1,5 @@
+# The image needs kong.yml, plugins/ and the entrypoint; the Java config tests stay out.
+target/
+src/
+pom.xml
+*.iml
