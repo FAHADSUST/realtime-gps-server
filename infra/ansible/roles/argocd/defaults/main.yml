@@ -1,0 +1,3 @@
+---
+# Chart repository. Point it at an internal Helm repository when nodes cannot reach the internet.
+argocd_chart_repo: https://argoproj.github.io/argo-helm

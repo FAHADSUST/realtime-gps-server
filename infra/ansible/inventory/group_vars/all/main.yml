@@ -35,5 +35,11 @@ monitoring_namespace: monitoring
 cluster_issuer: rls-ca
 cluster_ca_secret: rls-root-ca
 
+# Where Argo CD reads the desired state of everything it deploys (deploy/kubernetes/gitops).
+# Point it at an internal Git server, a mirror of this repository, when the cluster has no
+# internet access; private repositories take credentials from the vault.
+gitops_repo_url: https://github.com/FAHADSUST/realtime-gps-server.git
+gitops_revision: main
+
 # CPU architecture in the form release artefacts use (amd64, arm64).
 node_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] }}"

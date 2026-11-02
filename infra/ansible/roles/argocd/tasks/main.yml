@@ -1,0 +1,24 @@
+---
+- name: Check that the Argo CD admin password is in the vault
+  ansible.builtin.assert:
+    that:
+      - vault_argocd_admin_password_bcrypt is defined
+      - vault_argocd_admin_password_bcrypt is match('^[$]2[aby][$]')
+    fail_msg: >-
+      vault_argocd_admin_password_bcrypt must be a bcrypt hash. Create inventory/group_vars/all/vault.yml
+      from inventory/vault.example.yml (docs/on-prem/02-ansible.md, "Secrets").
+    quiet: true
+
+- name: Install Argo CD
+  kubernetes.core.helm:
+    name: argocd
+    chart_ref: argo-cd
+    chart_repo_url: "{{ argocd_chart_repo }}"
+    chart_version: "{{ argocd_chart_version }}"
+    release_namespace: argocd
+    create_namespace: true
+    kubeconfig: "{{ kubeconfig_path }}"
+    release_values: "{{ lookup('ansible.builtin.template', 'values.yaml.j2') | from_yaml }}"
+    wait: true
+    timeout: 10m
+  no_log: true

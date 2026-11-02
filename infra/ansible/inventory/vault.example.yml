@@ -15,3 +15,12 @@
 #   printf 'ops:%s\n' "$(openssl passwd -apr1)"   (where htpasswd is not available)
 vault_ops_ui_htpasswd: |
   ops:CHANGE-ME
+
+# Argo CD's local admin account, as a bcrypt hash. Create one with
+#   argocd account bcrypt --password '<password>'
+#   htpasswd -nbBC 10 '' '<password>' | tr -d ':\n' | sed 's/^\$2y/$2a/'
+vault_argocd_admin_password_bcrypt: CHANGE-ME
+
+# Only if gitops_repo_url is a private repository: a user and a read-only access token.
+# vault_gitops_repo_username: CHANGE-ME
+# vault_gitops_repo_password: CHANGE-ME

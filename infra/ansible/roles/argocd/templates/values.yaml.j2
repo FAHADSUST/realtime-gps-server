@@ -1,0 +1,68 @@
+# Helm values for Argo CD {{ argocd_chart_version }} (role: argocd).
+global:
+  domain: argocd.{{ cluster_domain }}
+
+configs:
+  params:
+    # TLS ends at Ingress-NGINX; inside the cluster argocd-server speaks plain HTTP.
+    server.insecure: true
+  cm:
+    # Argo CD stopped assessing the health of Application resources in 1.8. Restoring it lets an
+    # app-of-apps sync wave wait until the applications of the previous wave are healthy, not
+    # merely created.
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil and obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then
+          hs.message = obj.status.health.message
+        end
+      end
+      return hs
+  secret:
+    # From the vault. Sign-in is with the local admin account until single sign-on is set up.
+    argocdServerAdminPassword: "{{ vault_argocd_admin_password_bcrypt }}"
+
+# No single sign-on and no notification channels yet; both can be enabled later.
+dex:
+  enabled: false
+notifications:
+  enabled: false
+
+server:
+  replicas: 2
+  pdb:
+    enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: {{ cluster_issuer }}
+    tls: true
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+repoServer:
+  replicas: 2
+  pdb:
+    enabled: true
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+applicationSet:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
