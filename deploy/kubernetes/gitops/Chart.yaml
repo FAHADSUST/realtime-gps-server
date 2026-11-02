@@ -1,0 +1,7 @@
+apiVersion: v2
+name: gitops
+description: >-
+  App of apps for the realtime-gps on-prem cluster: every Argo CD Application that deploys the
+  observability stack, the image registry and the GPS services.
+type: application
+version: 1.0.0

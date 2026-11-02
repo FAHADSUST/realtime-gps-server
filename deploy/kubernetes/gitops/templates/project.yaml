@@ -1,0 +1,27 @@
+# Everything this chart deploys belongs to one project, limited to known sources and namespaces.
+# It is created first (wave -1) so the applications that reference it can be admitted.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: Observability, the image registry and the GPS services, deployed from Git.
+  sourceRepos:
+    - {{ .Values.gitops.repoURL | quote }}
+    {{- range .Values.project.helmRepositories }}
+    - {{ . | quote }}
+    {{- end }}
+  destinations:
+    {{- range .Values.project.namespaces }}
+    - server: https://kubernetes.default.svc
+      namespace: {{ . | quote }}
+    {{- else }}
+    []
+    {{- end }}
+  # Charts such as kube-prometheus-stack create cluster-scoped objects (ClusterRoles, webhooks).
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"

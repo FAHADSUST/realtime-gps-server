@@ -22,3 +22,33 @@
     wait: true
     timeout: 10m
   no_log: true
+
+- name: Give Argo CD read access to the GitOps repository
+  ansible.builtin.include_role:
+    name: kubectl_apply
+  vars:
+    kubectl_apply_name: GitOps repository credentials
+    kubectl_apply_manifest: "{{ lookup('ansible.builtin.template', 'repository-secret.yaml.j2') }}"
+    kubectl_apply_no_log: true
+  when: vault_gitops_repo_password is defined
+
+- name: Hand the platform over to Git
+  ansible.builtin.include_role:
+    name: kubectl_apply
+  vars:
+    kubectl_apply_name: root application
+    kubectl_apply_manifest: "{{ lookup('ansible.builtin.template', 'root-application.yaml.j2') }}"
+
+# Fails if Argo CD cannot read deploy/kubernetes/gitops at gitops_revision - the repository is
+# unreachable, private without credentials, or the branch does not have the chart yet.
+- name: Wait for Argo CD to sync the platform from Git
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ kubeconfig_path }}
+      - --namespace=argocd
+      - wait
+      - application/gitops
+      - --for=jsonpath={.status.sync.status}=Synced
+      - --timeout=5m
+  changed_when: false

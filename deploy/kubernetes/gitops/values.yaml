@@ -1,0 +1,16 @@
+# The root Application, created by Ansible, sets `cluster` and `gitops` from the inventory. The
+# defaults below only let `helm template` render the chart on its own.
+cluster:
+  domain: rls.internal
+  issuer: rls-ca
+  monitoringNamespace: monitoring
+
+gitops:
+  repoURL: https://github.com/FAHADSUST/realtime-gps-server.git
+  targetRevision: main
+
+# What the applications in the `platform` project may use: the Git repository above plus these
+# Helm repositories, and only these namespaces. Each application adds what it needs.
+project:
+  helmRepositories: []
+  namespaces: []

@@ -1,0 +1,30 @@
+# Managed by Ansible (role: argocd). The one Application Ansible creates: it deploys the chart in
+# deploy/kubernetes/gitops, whose Applications deploy everything else. Cluster-specific settings
+# come from the inventory, so the repository holds no environment details.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitops
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: {{ gitops_repo_url }}
+    targetRevision: {{ gitops_revision }}
+    path: deploy/kubernetes/gitops
+    helm:
+      valuesObject:
+        cluster:
+          domain: {{ cluster_domain }}
+          issuer: {{ cluster_issuer }}
+          monitoringNamespace: {{ monitoring_namespace }}
+        gitops:
+          repoURL: {{ gitops_repo_url }}
+          targetRevision: {{ gitops_revision }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

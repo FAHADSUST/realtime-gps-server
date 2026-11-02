@@ -61,6 +61,7 @@ realtime-gps/
 ├── services/                # id-service, ping-service, history-service
 ├── gateway/kong/            # Kong declarative config, the rls_auth plugin, config tests
 ├── deploy/                  # docker-compose stack, MySQL init SQL, Consul KV seed files
+│   └── kubernetes/gitops/   # what Argo CD deploys on the on-prem cluster (app of apps)
 ├── infra/                   # on-prem: Terraform (Proxmox VMs) and Ansible (cluster + platform)
 ├── scripts/                 # build.sh (JDK 21), local stack and smoke-test scripts
 └── docs/                    # on-prem platform guides, architecture diagram
@@ -137,7 +138,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P6 | Longhorn — replicated storage | ✅ done² ([guide](docs/on-prem/05-storage.md)) |
 | P7 | Ingress-NGINX | ✅ done² ([guide](docs/on-prem/04-networking.md#ingress-nginx)) |
 | P8 | cert-manager — internal CA | ✅ done² ([guide](docs/on-prem/06-tls.md)) |
-| P9 | Argo CD — GitOps app-of-apps | ⬜ planned |
+| P9 | Argo CD — GitOps app-of-apps | ✅ done² ([guide](docs/on-prem/07-gitops.md)) |
 | P10 | Prometheus | ⬜ planned |
 | P11 | Grafana | ⬜ planned |
 | P12 | Loki + Alloy | ⬜ planned |
@@ -1542,6 +1543,18 @@ in-cluster registries, and a copy is saved for workstations. Ingress-NGINX serve
 from `inventory/vault.example.yml`. Its first entry protects the operator UIs, now published at
 `hubble.rls.internal` and `longhorn.rls.internal` over TLS behind basic authentication, applied
 with output suppressed. Guide: [06 — TLS](docs/on-prem/06-tls.md).
+
+### P9 — Argo CD: Git takes over (P9.1 – P9.2)
+
+`site.yml --tags argocd` installs Argo CD 3.5.6 at `https://argocd.rls.internal` — TLS from the
+cluster CA, admin password hash from the vault, two replicas of the server and repo server,
+metrics for Prometheus — and restores the Application health check so sync waves wait for healthy
+applications. Ansible then creates a single root Application that deploys the new
+`deploy/kubernetes/gitops` chart from this repository, passing in the cluster's domain, issuer and
+repository from the inventory so Git holds no environment details. The chart defines the `platform`
+AppProject, restricted to known sources and namespaces, and a shared spec for the applications the
+next layers add: automated sync with pruning and self-healing, server-side apply, retries. The play
+waits until Argo CD has synced from Git. Guide: [07 — GitOps](docs/on-prem/07-gitops.md).
 
 <!-- next-commit-log-entry -->
 
