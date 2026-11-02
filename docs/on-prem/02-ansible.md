@@ -10,6 +10,7 @@ are added to the same playbook, one tagged play each. Code: [`infra/ansible`](..
 | `requirements.yml` | Collections, pinned: `ansible.posix`, `community.general`, `kubernetes.core` |
 | `inventory/hosts.yml` | Written by Terraform; git-ignored |
 | `inventory/hosts.example.yml` | The same shape, for bare metal or machines created another way |
+| `inventory/vault.example.yml` | Every secret the platform needs; copied to `group_vars/all/vault.yml` and encrypted |
 | `inventory/group_vars/all/main.yml` | Cluster-wide settings: names, domains, pod and service networks |
 | `inventory/group_vars/all/versions.yml` | Every version the platform installs, with the checksums of downloaded binaries |
 | `roles/node_baseline` | Swap, kernel modules, sysctls, time sync, base packages |
@@ -58,10 +59,40 @@ No route to the internet? See [Mirrors](#mirrors-and-networks-without-internet-a
 | Cluster name, DNS domain, pod or service network | `group_vars/all/main.yml` |
 | Node addresses, the API VIP, the MetalLB pool | `terraform.tfvars`, then `terraform apply` — Terraform rewrites the inventory |
 | How a role behaves (NTP servers, registry mirrors, …) | Set the role's variable in `group_vars/all/main.yml` |
+| A password or other secret | `group_vars/all/vault.yml`, encrypted — see [Secrets](#secrets) |
 
 Every role variable starts with the role's name and is documented, with its default, in
 `roles/<role>/defaults/main.yml`. Addresses are deliberately absent from `group_vars`: a value set
 there would silently override the one Terraform checked.
+
+---
+
+## Secrets
+
+Secrets live in exactly one place: `inventory/group_vars/all/vault.yml`, encrypted with Ansible
+Vault and git-ignored. Ansible writes them into the cluster as Kubernetes Secrets; nothing in git —
+including what Argo CD deploys — ever contains one.
+
+```bash
+cd infra/ansible
+cp inventory/vault.example.yml inventory/group_vars/all/vault.yml
+$EDITOR inventory/group_vars/all/vault.yml           # replace every CHANGE-ME
+ansible-vault encrypt inventory/group_vars/all/vault.yml
+```
+
+[`vault.example.yml`](../../infra/ansible/inventory/vault.example.yml) lists every secret with how
+to generate it; its variables all start with `vault_`. Once the file is encrypted, every playbook
+run needs the vault password:
+
+```bash
+ansible-playbook site.yml --ask-vault-pass
+# or, with the password in a file outside the repository:
+export ANSIBLE_VAULT_PASSWORD_FILE=~/.config/rls/vault-pass
+```
+
+`ansible-vault edit inventory/group_vars/all/vault.yml` changes a value in place; re-run the layer
+that uses it. Keep a copy of the vault password somewhere safe and separate (a password manager):
+without it the file cannot be read, and the secrets would have to be set again.
 
 ---
 

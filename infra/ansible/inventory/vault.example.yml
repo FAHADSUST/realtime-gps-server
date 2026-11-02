@@ -1,0 +1,17 @@
+---
+# Every secret the platform needs - and the only place one lives. Copy this file into group_vars,
+# replace every value, and encrypt it before anything else:
+#
+#   cp inventory/vault.example.yml inventory/group_vars/all/vault.yml
+#   ansible-vault encrypt inventory/group_vars/all/vault.yml
+#
+# group_vars/all/vault.yml is git-ignored. Playbooks then need the vault password: pass
+# --ask-vault-pass, or keep it in a file outside git and set ANSIBLE_VAULT_PASSWORD_FILE.
+# This example sits outside group_vars on purpose, so its placeholders are never loaded.
+
+# Basic authentication for the operator UIs without a login of their own (Hubble, Longhorn,
+# Prometheus, Alertmanager): htpasswd lines, one per person. Create one with
+#   htpasswd -nB ops                              (bcrypt; from apache2-utils / httpd-tools)
+#   printf 'ops:%s\n' "$(openssl passwd -apr1)"   (where htpasswd is not available)
+vault_ops_ui_htpasswd: |
+  ops:CHANGE-ME
