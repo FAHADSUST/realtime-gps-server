@@ -21,3 +21,6 @@ kubernetes_api_hostname: "k8s-api.{{ cluster_domain }}"
 first_control_plane: "{{ groups['control_plane'] | first }}"
 
 kubeconfig_path: /etc/kubernetes/admin.conf
+
+# CPU architecture in the form release artefacts use (amd64, arm64).
+node_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] }}"

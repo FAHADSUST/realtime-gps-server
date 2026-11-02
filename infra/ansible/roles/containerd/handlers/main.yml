@@ -1,0 +1,7 @@
+---
+# Running containers survive this: the unit uses KillMode=process, so only the daemon restarts.
+- name: Restart containerd
+  ansible.builtin.systemd_service:
+    name: containerd
+    state: restarted
+    daemon_reload: true

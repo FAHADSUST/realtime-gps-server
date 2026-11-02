@@ -1,0 +1,106 @@
+---
+# containerd and runc are installed from their upstream releases: Ubuntu 24.04 ships containerd 1.7,
+# while Kubernetes 1.36 is built and tested against the 2.x line.
+
+# Any runtime from apt would compete for the same socket and shadow these binaries.
+- name: Remove container runtimes installed from apt
+  ansible.builtin.apt:
+    name:
+      - containerd
+      - containerd.io
+      - docker.io
+      - runc
+    state: absent
+
+- name: Create the download cache
+  ansible.builtin.file:
+    path: "{{ containerd_download_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download containerd {{ containerd_version }}
+  ansible.builtin.get_url:
+    url: "{{ containerd_download_base_url }}/containerd-{{ containerd_version }}-linux-{{ node_arch }}.tar.gz"
+    dest: "{{ containerd_download_dir }}/containerd-{{ containerd_version }}-linux-{{ node_arch }}.tar.gz"
+    checksum: "sha256:{{ containerd_sha256[node_arch] }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# The archive holds bin/containerd, bin/ctr and the runc shim, owned by root.
+- name: Unpack containerd into /usr/local
+  ansible.builtin.unarchive:
+    src: "{{ containerd_download_dir }}/containerd-{{ containerd_version }}-linux-{{ node_arch }}.tar.gz"
+    dest: /usr/local
+    remote_src: true
+  notify: Restart containerd
+
+- name: Install runc {{ runc_version }}
+  ansible.builtin.get_url:
+    url: "{{ containerd_runc_download_base_url }}/runc.{{ node_arch }}"
+    dest: /usr/local/sbin/runc
+    checksum: "sha256:{{ runc_sha256[node_arch] }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create the directory for locally installed units
+  ansible.builtin.file:
+    path: /usr/local/lib/systemd/system
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the containerd service
+  ansible.builtin.copy:
+    src: containerd.service
+    dest: /usr/local/lib/systemd/system/containerd.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart containerd
+
+- name: Create the configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/containerd
+    - "{{ containerd_registry_config_dir }}"
+
+- name: Configure containerd
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: /etc/containerd/config.toml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart containerd
+
+- name: Point crictl at containerd
+  ansible.builtin.copy:
+    dest: /etc/crictl.yaml
+    content: |
+      runtime-endpoint: unix:///run/containerd/containerd.sock
+      image-endpoint: unix:///run/containerd/containerd.sock
+      timeout: 10
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Start containerd and enable it at boot
+  ansible.builtin.systemd_service:
+    name: containerd
+    enabled: true
+    state: started
+    daemon_reload: true
+
+# kubeadm runs right after the node roles and must find containerd on its final configuration.
+- name: Apply pending containerd restarts now
+  ansible.builtin.meta: flush_handlers

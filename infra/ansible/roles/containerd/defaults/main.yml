@@ -1,0 +1,11 @@
+---
+# Where the release binaries come from. Point both at an internal mirror (Nexus, Artifactory, any
+# web server) when the nodes cannot reach GitHub; keep the upstream file names.
+containerd_download_base_url: "https://github.com/containerd/containerd/releases/download/v{{ containerd_version }}"
+containerd_runc_download_base_url: "https://github.com/opencontainers/runc/releases/download/v{{ runc_version }}"
+
+# Downloaded archives stay here, so re-runs with an unchanged version download nothing.
+containerd_download_dir: /var/cache/containerd-release
+
+# Per-registry settings (mirrors, CAs): one directory per registry host, each with a hosts.toml.
+containerd_registry_config_dir: /etc/containerd/certs.d

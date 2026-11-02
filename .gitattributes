@@ -15,6 +15,9 @@
 *.toml      text eol=lf
 *.alloy     text eol=lf
 Dockerfile  text eol=lf
+# Everything under these trees is copied onto Linux nodes (unit files, configs, manifests).
+infra/**    text eol=lf
+deploy/**   text eol=lf
 
 *.png binary
 *.pdf binary

@@ -9,4 +9,5 @@
   become: true
   roles:
     - role: node_baseline
+    - role: containerd
   tags: [nodes]
