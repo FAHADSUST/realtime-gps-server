@@ -53,5 +53,7 @@ module "node" {
   ssh_username    = var.ssh.username
   ssh_public_keys = var.ssh.public_keys
 
+  allow_reboot = var.allow_vm_reboot
+
   depends_on = [terraform_data.address_plan]
 }

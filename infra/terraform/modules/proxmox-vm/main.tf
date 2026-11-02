@@ -17,6 +17,11 @@ resource "proxmox_virtual_environment_vm" "this" {
   started         = true
   stop_on_destroy = true
 
+  # The provider would otherwise reboot a node by itself whenever a change (CPU, memory) needs it -
+  # an unplanned outage triggered by an innocent apply. Changes that need a reboot now fail until
+  # the node is drained and the apply is re-run with allow_vm_reboot = true.
+  reboot_after_update = var.allow_reboot
+
   clone {
     vm_id     = var.template_vm_id
     node_name = coalesce(var.template_node, var.proxmox_node)

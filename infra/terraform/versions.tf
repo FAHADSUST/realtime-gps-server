@@ -6,6 +6,10 @@ terraform {
       source  = "bpg/proxmox"
       version = "~> 0.119"
     }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.9"
+    }
   }
 
   # State is local by default. For a team, move it to a shared backend that also lives on-prem,

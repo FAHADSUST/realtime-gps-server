@@ -44,6 +44,12 @@ variable "cpu_type" {
   default     = "x86-64-v2-AES"
 }
 
+variable "allow_vm_reboot" {
+  description = "Allow Terraform to reboot VMs to apply a change. Set only for a targeted apply on a drained node."
+  type        = bool
+  default     = false
+}
+
 # ---------------------------------------------------------------------------------------------
 # Network
 # ---------------------------------------------------------------------------------------------

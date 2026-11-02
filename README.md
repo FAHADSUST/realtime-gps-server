@@ -129,7 +129,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | # | Milestone | Status |
 |---|---|---|
 | P0 | Architecture, network plan, version matrix | ✅ done |
-| P1 | Terraform — Proxmox VMs and inventory | ⬜ planned |
+| P1 | Terraform — Proxmox VMs and inventory | ✅ done ([guide](docs/on-prem/01-terraform.md)) |
 | P2 | Ansible — node baseline, containerd, Kubernetes packages | ⬜ planned |
 | P3 | kubeadm — HA control plane with kube-vip | ⬜ planned |
 | P4 | Cilium — CNI, kube-proxy replacement, Hubble | ⬜ planned |
@@ -1450,6 +1450,15 @@ pipeline, which layer Ansible owns and which Argo CD owns, the network plan, a v
 checked against upstream, and the decisions behind it. Notable findings while pinning versions:
 Ingress-NGINX was archived in March 2026, Promtail is end-of-life, Grafana's OSS charts moved to
 `grafana-community`, and Kubernetes 1.36 is the newest release Cilium 1.20 supports.
+
+### P1 — Terraform: Proxmox VMs and inventory (P1.1 – P1.3)
+
+`infra/terraform` creates the cluster's VMs from an Ubuntu 24.04 cloud-init template and writes
+the Ansible inventory. Nodes are an explicit map validated for an odd control-plane count, unique
+addresses and a Longhorn disk per worker; Terraform owns every address on the node network, so a
+VIP or ingress IP colliding with a node fails the plan. Terraform may not reboot a node on its own.
+Validated against the real `bpg/proxmox` 0.119 schema, with plans exercised against the example and
+broken inputs. Guide: [01 — Terraform](docs/on-prem/01-terraform.md).
 
 <!-- next-commit-log-entry -->
 

@@ -102,3 +102,9 @@ variable "tags" {
   type    = list(string)
   default = []
 }
+
+variable "allow_reboot" {
+  description = "Let the provider reboot the VM when a change needs it. Off by default: a node must be drained first."
+  type        = bool
+  default     = false
+}

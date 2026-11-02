@@ -18,3 +18,8 @@ output "ingress_ip" {
   description = "Address every *.<domain> DNS record should point to."
   value       = var.cluster_addresses.ingress_ip
 }
+
+output "ansible_inventory" {
+  description = "Inventory written for Ansible."
+  value       = abspath(local_file.ansible_inventory.filename)
+}
