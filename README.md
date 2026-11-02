@@ -135,7 +135,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P4 | Cilium — CNI, kube-proxy replacement, Hubble | ✅ done² ([guide](docs/on-prem/03-kubernetes.md#cilium-the-pod-network)) |
 | P5 | MetalLB — L2 address pool | ✅ done² ([guide](docs/on-prem/04-networking.md)) |
 | P6 | Longhorn — replicated storage | ✅ done² ([guide](docs/on-prem/05-storage.md)) |
-| P7 | Ingress-NGINX | ⬜ planned |
+| P7 | Ingress-NGINX | ✅ done² ([guide](docs/on-prem/04-networking.md#ingress-nginx)) |
 | P8 | cert-manager — internal CA | ⬜ planned |
 | P9 | Argo CD — GitOps app-of-apps | ⬜ planned |
 | P10 | Prometheus | ⬜ planned |
@@ -1519,6 +1519,17 @@ unit-tested against nine disk layouts). Longhorn 1.13.0 becomes the default Stor
 replicas per volume, deletes pods stuck on dead nodes so they can move, does not call home, and lets
 Prometheus — and only Prometheus — through its network policy to scrape metrics. Guide:
 [05 — Storage](docs/on-prem/05-storage.md).
+
+### P7 — Ingress-NGINX: the HTTP entry point
+
+`site.yml --tags ingress` installs Ingress-NGINX 4.15.1 (controller 1.15.1, the project's final
+release) as a DaemonSet on the workers behind the reserved MetalLB address, with
+`externalTrafficPolicy: Local` so backends see real client addresses. It is the default
+IngressClass, writes JSON access logs, exports metrics, and keeps snippet annotations off. Because
+the project is archived, a CiliumNetworkPolicy lets only the API server reach its admission webhook
+— the path the 2025 IngressNightmare attacks used — and only Prometheus reach its metrics. The guide
+adds the DNS records and a migration path to Cilium's Gateway API. Guide:
+[04 — Networking](docs/on-prem/04-networking.md#ingress-nginx).
 
 <!-- next-commit-log-entry -->
 

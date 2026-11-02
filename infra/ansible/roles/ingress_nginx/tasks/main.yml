@@ -1,0 +1,20 @@
+---
+- name: Install Ingress-NGINX
+  kubernetes.core.helm:
+    name: ingress-nginx
+    chart_ref: ingress-nginx
+    chart_repo_url: "{{ ingress_nginx_chart_repo }}"
+    chart_version: "{{ ingress_nginx_chart_version }}"
+    release_namespace: ingress-nginx
+    create_namespace: true
+    kubeconfig: "{{ kubeconfig_path }}"
+    release_values: "{{ lookup('ansible.builtin.template', 'values.yaml.j2') | from_yaml }}"
+    wait: true
+    timeout: 5m
+
+- name: Restrict traffic to the controller
+  ansible.builtin.include_role:
+    name: kubectl_apply
+  vars:
+    kubectl_apply_name: Ingress-NGINX network policy
+    kubectl_apply_manifest: "{{ lookup('ansible.builtin.template', 'network-policy.yaml.j2') }}"

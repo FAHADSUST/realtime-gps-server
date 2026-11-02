@@ -1,0 +1,36 @@
+# Managed by Ansible (role: ingress_nginx).
+# Ingress-NGINX is archived and receives no more security fixes, so its exposure is kept to what it
+# needs. The 2025 "IngressNightmare" vulnerabilities were exploited by pods reaching the admission
+# webhook; here only the API server can.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  description: Front door open, admission webhook for the API server only, metrics for Prometheus only.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+  ingress:
+    - fromEntities: [all]
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+    - fromEntities: [kube-apiserver]
+      toPorts:
+        - ports:
+            - port: "8443"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ monitoring_namespace }}
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "10254"
+              protocol: TCP
