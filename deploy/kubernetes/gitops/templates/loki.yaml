@@ -1,0 +1,25 @@
+{{- if .Values.apps.loki.enabled }}
+# Log storage. Wave 0, with Prometheus: it must exist before Alloy ships logs to it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  {{- include "gitops.applicationSpec" (dict "namespace" .Values.cluster.monitoringNamespace) | nindent 2 }}
+  sources:
+    - repoURL: https://grafana-community.github.io/helm-charts
+      chart: loki
+      targetRevision: {{ .Values.apps.loki.chartVersion | quote }}
+      helm:
+        releaseName: loki
+        valueFiles:
+          - $values/deploy/kubernetes/gitops/values/loki.yaml
+    - repoURL: {{ .Values.gitops.repoURL }}
+      targetRevision: {{ .Values.gitops.targetRevision }}
+      ref: values
+{{- end }}

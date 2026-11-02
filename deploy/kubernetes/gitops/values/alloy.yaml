@@ -1,0 +1,98 @@
+# Static values for Grafana Alloy, the log collector (Promtail's successor; Promtail is end-of-life).
+# One Alloy per node reads that node's pod logs from disk and pushes them to Loki. Loki's address and
+# the cluster name come per cluster from templates/alloy.yaml, as LOKI_PUSH_URL and CLUSTER_NAME.
+alloy:
+  configMap:
+    content: |
+      // This node's pods, found through the Kubernetes API. HOSTNAME is the node name (set by the
+      // chart), so every Alloy only follows the pods next to it.
+      discovery.kubernetes "pods" {
+        role = "pod"
+
+        selectors {
+          role  = "pod"
+          field = "spec.nodeName=" + sys.env("HOSTNAME")
+        }
+      }
+
+      // Labels every stream carries in Loki, and where its log file is:
+      // /var/log/pods/<namespace>_<pod>_<uid>/<container>/<n>.log
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          target_label  = "node"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+          separator     = "/"
+          target_label  = "__path__"
+          replacement   = "/var/log/pods/*$1/*.log"
+        }
+      }
+
+      local.file_match "pods" {
+        path_targets = discovery.relabel.pods.output
+      }
+
+      loki.source.file "pods" {
+        targets    = local.file_match.pods.targets
+        forward_to = [loki.process.pods.receiver]
+      }
+
+      loki.process "pods" {
+        // Container runtime format: "<time> <stream> <partial flag> <message>". Keeps the
+        // message and its timestamp, and joins lines the runtime split.
+        stage.cri {}
+
+        // One stream per file would multiply Loki's streams for no benefit.
+        stage.label_drop {
+          values = ["filename"]
+        }
+
+        forward_to = [loki.write.loki.receiver]
+      }
+
+      loki.write "loki" {
+        endpoint {
+          url = sys.env("LOKI_PUSH_URL")
+        }
+
+        external_labels = {
+          cluster = sys.env("CLUSTER_NAME"),
+        }
+      }
+
+  # The kubelet writes pod logs under /var/log/pods on the host.
+  mounts:
+    varlog: true
+
+controller:
+  type: daemonset
+  # Control planes run pods too; collect their logs as well.
+  tolerations:
+    - operator: Exists
+
+serviceMonitor:
+  enabled: true
+
+# The PodLogs CRD is not used: logs are read from disk.
+crds:
+  create: false

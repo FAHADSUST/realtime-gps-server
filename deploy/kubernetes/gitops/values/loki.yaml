@@ -1,0 +1,66 @@
+# Static values for Loki (grafana-community chart), deployed as a single binary on a Longhorn
+# volume. The two scalable modes need object storage; this cluster has none, and one Loki handles
+# tens of gigabytes of logs a day.
+deploymentMode: Monolithic
+
+loki:
+  # One tenant: every log stream belongs to the cluster.
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2026-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  # Logs older than 14 days are deleted by the compactor.
+  limits_config:
+    retention_period: 336h
+  compactor:
+    retention_enabled: true
+    delete_request_store: filesystem
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    storageClass: longhorn
+    size: 30Gi
+
+# The scalable modes' components stay off.
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+# Grafana and Alloy talk to Loki directly; no NGINX gateway in front of a single instance.
+gateway:
+  enabled: false
+# Memcached result and chunk caches pay off at a scale this cluster does not have.
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+# Loki's own metrics, alert rules and dashboards, picked up by Prometheus and Grafana.
+monitoring:
+  serviceMonitor:
+    enabled: true
+  rules:
+    enabled: true
+  dashboards:
+    enabled: true
+
+# No synthetic log traffic or Helm test pods.
+lokiCanary:
+  enabled: false
+test:
+  enabled: false

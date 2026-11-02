@@ -10,9 +10,20 @@ first pod.
 | Prometheus | Scrapes and stores metrics, evaluates alert rules | `https://prometheus.rls.internal` |
 | Alertmanager | Groups, silences and routes alerts | `https://alertmanager.rls.internal` |
 | Grafana | Dashboards over metrics and logs | `https://grafana.rls.internal` |
+| Loki | Stores and indexes logs | through Grafana |
+| Alloy | Collects every pod's logs on every node | — |
 
 Prometheus and Alertmanager have no login of their own and sit behind the operator basic
 authentication (see [06 — TLS](06-tls.md#operator-uis)); Grafana has its own.
+
+| Sync wave | Applications |
+|---|---|
+| 0 | `kube-prometheus-stack`, `loki` |
+| 1 | `grafana`, `alloy` — they read from, or write to, wave 0 |
+
+**Storage.** All of it on Longhorn, three replicas each: Prometheus 30 Gi, Loki 30 Gi, Alertmanager
+2 Gi, Grafana 2 Gi — 64 Gi of the roughly 150 Gi the default topology offers (see
+[05 — Storage](05-storage.md#disks)).
 
 ---
 
@@ -80,10 +91,47 @@ name, which lives in Grafana's database.
 
 ---
 
+## Loki and Alloy
+
+**Loki** 3.7.9 (grafana-community chart 20.2.1 — Grafana Labs' `grafana/loki` chart now targets its
+enterprise product) runs as a single binary with its data on a 30 Gi Longhorn volume. Values:
+[`values/loki.yaml`](../../deploy/kubernetes/gitops/values/loki.yaml).
+
+| Setting | Value | Why |
+|---|---|---|
+| Mode | Monolithic (single binary), one replica | Loki's scalable modes require object storage; one instance handles tens of gigabytes of logs a day. Its volume is replicated, so a node failure means a restart elsewhere, not lost logs |
+| Storage, schema | Filesystem, TSDB index, schema v13 | The current schema, on the Longhorn volume |
+| Retention | 14 days, enforced by the compactor | Loki has no size limit: Prometheus' `KubePersistentVolumeFillingUp` alert warns before the volume fills |
+| Tenancy | Off (one tenant) | All streams belong to this cluster |
+| Gateway, caches, canary, tests | Off | They pay off at a scale this cluster does not have |
+| Self-monitoring | ServiceMonitor, alert rules, dashboards | Loki is observed like everything else |
+
+**Alloy** v1.21.3 (chart 1.15.0, still published by Grafana Labs) is the collector; it replaces
+Promtail, which reached end of life. One Alloy runs on every node, control planes included. Its
+pipeline, in [`values/alloy.yaml`](../../deploy/kubernetes/gitops/values/alloy.yaml):
+
+1. finds the pods on its own node through the Kubernetes API;
+2. reads their log files under `/var/log/pods` — from disk, so the API server does not stream logs;
+3. parses the container runtime's line format and rejoins lines the runtime split;
+4. pushes to Loki with the labels `cluster`, `namespace`, `pod`, `container`, `app` and `node`.
+
+The configuration is checked with `alloy validate` from Alloy v1.21.3, which rejects unknown
+components and attributes.
+
+**Querying.** In Grafana, **Explore → Loki**. Ingress-NGINX logs JSON, so its fields are one parser
+away:
+
+```
+{namespace="ingress-nginx"} | json | status >= 500
+{namespace="monitoring", app="grafana"} |= "error"
+```
+
+---
+
 ## Run
 
 Nothing to run by hand: once Argo CD has synced the `gitops` application, it creates
-`kube-prometheus-stack` and `grafana` and keeps them in line with Git. The Grafana admin Secret
+`kube-prometheus-stack`, `loki`, `grafana` and `alloy` and keeps them in line with Git. The Grafana admin Secret
 comes first, from Ansible: `ansible-playbook site.yml --tags secrets --ask-vault-pass`. To change a setting, edit the values file and
 merge (see [07 — GitOps](07-gitops.md#making-a-change)).
 
@@ -100,7 +148,13 @@ In `https://prometheus.rls.internal`, **Status → Target health** lists every t
 on a healthy cluster, nothing else.
 
 In `https://grafana.rls.internal`, sign in as `admin`. **Connections → Data sources** lists
-Prometheus and Alertmanager; **Dashboards** holds the Kubernetes and Cilium folders, with data.
+Prometheus, Alertmanager and Loki; **Dashboards** holds the Kubernetes, Cilium and Loki dashboards,
+with data. In **Explore → Loki**, `{namespace="kube-system"}` returns logs from every node.
+
+```bash
+kubectl -n monitoring get daemonset alloy                   # one pod per node, all ready
+kubectl -n monitoring get statefulset loki
+```
 
 ---
 
@@ -114,3 +168,5 @@ Prometheus and Alertmanager; **Dashboards** holds the Kubernetes and Cilium fold
 | The application is `OutOfSync` on webhook configurations | The `caBundle` difference is ignored by design; anything else in the diff is real |
 | Grafana's pod fails with `secret "grafana-admin" not found` | The secrets layer has not run: `ansible-playbook site.yml --tags secrets --ask-vault-pass` |
 | A dashboard shows "No data" | Check its data source variable at the top of the dashboard, then the query's metric in Prometheus: the target behind it may be down |
+| No logs from one node | `kubectl -n monitoring logs <alloy pod on that node>`. Alloy's own UI (`kubectl -n monitoring port-forward <pod> 12345`) shows each component's health |
+| Loki rejects logs as too old after an outage | `reject_old_samples` drops lines older than a week; anything newer is accepted once Loki is back |

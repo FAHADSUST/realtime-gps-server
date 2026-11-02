@@ -33,6 +33,18 @@ spec:
           grafana.ini:
             server:
               root_url: {{ printf "https://grafana.%s" .Values.cluster.domain }}
+          {{- if .Values.apps.loki.enabled }}
+          # Prometheus and Alertmanager come from kube-prometheus-stack's ConfigMap; Loki from here.
+          datasources:
+            loki.yaml:
+              apiVersion: 1
+              datasources:
+                - name: Loki
+                  type: loki
+                  uid: loki
+                  access: proxy
+                  url: {{ printf "http://loki.%s.svc:3100" .Values.cluster.monitoringNamespace }}
+          {{- end }}
     - repoURL: {{ .Values.gitops.repoURL }}
       targetRevision: {{ .Values.gitops.targetRevision }}
       ref: values

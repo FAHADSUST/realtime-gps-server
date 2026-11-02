@@ -16,6 +16,8 @@ project:
   helmRepositories:
     - https://prometheus-community.github.io/helm-charts
     - https://grafana-community.github.io/helm-charts
+    # Alloy is still published here by Grafana Labs.
+    - https://grafana.github.io/helm-charts
   namespaces:
     # kube-prometheus-stack adds Services there to scrape the control plane.
     - kube-system
@@ -31,3 +33,11 @@ apps:
     enabled: true
     # Grafana 13.3.0. Grafana's own grafana/grafana chart is deprecated; the community maintains it.
     chartVersion: 14.3.0
+  loki:
+    enabled: true
+    # Loki 3.7.9 (grafana-community; grafana/loki now targets Grafana Enterprise Logs).
+    chartVersion: 20.2.1
+  alloy:
+    enabled: true
+    # Alloy v1.21.3.
+    chartVersion: 1.15.0

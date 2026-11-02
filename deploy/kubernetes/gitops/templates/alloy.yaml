@@ -1,0 +1,32 @@
+{{- if .Values.apps.alloy.enabled }}
+# Log collection on every node. Wave 1: after Loki, which it pushes to.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  {{- include "gitops.applicationSpec" (dict "namespace" .Values.cluster.monitoringNamespace) | nindent 2 }}
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: alloy
+      targetRevision: {{ .Values.apps.alloy.chartVersion | quote }}
+      helm:
+        releaseName: alloy
+        valueFiles:
+          - $values/deploy/kubernetes/gitops/values/alloy.yaml
+        valuesObject:
+          alloy:
+            extraEnv:
+              - name: LOKI_PUSH_URL
+                value: {{ printf "http://loki.%s.svc:3100/loki/api/v1/push" .Values.cluster.monitoringNamespace }}
+              - name: CLUSTER_NAME
+                value: {{ .Values.cluster.name }}
+    - repoURL: {{ .Values.gitops.repoURL }}
+      targetRevision: {{ .Values.gitops.targetRevision }}
+      ref: values
+{{- end }}

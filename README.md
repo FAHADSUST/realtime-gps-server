@@ -141,7 +141,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P9 | Argo CD — GitOps app-of-apps | ✅ done² ([guide](docs/on-prem/07-gitops.md)) |
 | P10 | Prometheus | ✅ done² ([guide](docs/on-prem/08-observability.md)) |
 | P11 | Grafana | ✅ done² ([guide](docs/on-prem/08-observability.md#grafana)) |
-| P12 | Loki + Alloy | ⬜ planned |
+| P12 | Loki + Alloy | ✅ done² ([guide](docs/on-prem/08-observability.md#loki-and-alloy)) |
 | P13 | The application on Kubernetes | ⬜ planned |
 | P14 | Validation and operations runbook | ⬜ planned |
 
@@ -1580,6 +1580,18 @@ dashboards for it, and Cilium's dashboards are picked up from `kube-system`. A 2
 users and preferences; update checks and usage reporting are off. Every Argo CD application is
 rendered the way Argo CD does and schema-validated (122 objects). Guide:
 [08 — Observability](docs/on-prem/08-observability.md#grafana).
+
+### P12 — Loki and Alloy: logs
+
+Argo CD deploys Loki 3.7.9 (grafana-community chart) next to Prometheus in wave 0 — a single binary
+with a TSDB index on a 30 Gi Longhorn volume, 14 days of retention enforced by the compactor, no
+gateway or caches, and its own metrics, alerts and dashboards. Grafana Alloy v1.21.3, Promtail's
+successor, follows in wave 1 as a DaemonSet on every node: it finds its node's pods through the API,
+reads their log files from disk, parses the runtime format and pushes them to Loki labelled by
+cluster, namespace, pod, container, app and node. Grafana gains Loki as a data source. The Alloy
+pipeline passes `alloy validate` from Alloy v1.21.3, and all 156 objects the four observability
+applications render are schema-valid. Guide:
+[08 — Observability](docs/on-prem/08-observability.md#loki-and-alloy).
 
 <!-- next-commit-log-entry -->
 
