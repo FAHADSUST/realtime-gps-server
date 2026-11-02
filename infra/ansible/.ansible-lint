@@ -1,0 +1,7 @@
+---
+# ansible-lint configuration (run from infra/ansible). The production profile is the strictest.
+profile: production
+
+exclude_paths:
+  # Collections installed from requirements.yml, not code of this repository.
+  - collections/

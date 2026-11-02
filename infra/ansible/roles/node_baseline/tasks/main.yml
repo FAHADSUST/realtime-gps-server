@@ -28,6 +28,7 @@
     path: /etc/fstab
     regexp: '^([^#].*\sswap\s.*)$'
     replace: '# \1'
+    mode: "0644"
 
 - name: Load kernel modules at boot
   ansible.builtin.copy:

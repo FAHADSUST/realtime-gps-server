@@ -72,6 +72,7 @@ status="$(request -X POST "${KONG}/api/v1/user/signup" -H 'Content-Type: applica
   -d "{\"appKey\":\"${APP_KEY}\",\"appSecret\":\"${APP_SECRET}\",\"username\":\"${USERNAME}\",\"password\":\"${PASSWORD}\"}")"
 expect_status "user signup is public through the gateway" 201 "${status}"
 USER_ID="$(json_field userId < "${BODY_FILE}")"
+echo "    signed up user ${USER_ID}"
 
 status="$(request -X POST "${KONG}/api/v1/auth/token" -H 'Content-Type: application/json' \
   -d "{\"appKey\":\"${APP_KEY}\",\"username\":\"${USERNAME}\",\"password\":\"${PASSWORD}\"}")"
