@@ -59,7 +59,7 @@ check_ansible() {
   (
     cd infra/ansible
     ansible-galaxy collection install -r requirements.yml -p collections >/dev/null
-    ansible-playbook -i inventory/hosts.example.yml site.yml --syntax-check
+    ansible-playbook -i inventory/hosts.example.yml site.yml upgrade.yml --syntax-check
     ansible-lint
   )
   "${PYTHON}" -m unittest discover -s infra/ansible/tests

@@ -1,0 +1,101 @@
+---
+# Upgrades one node to kubernetes_version, the kubeadm way. Plays run it one node at a time
+# (serial: 1), control planes first: kubeadm before the control plane, the control plane before
+# any kubelet - a kubelet must never be newer than its API server.
+
+- name: Read installed package versions
+  ansible.builtin.package_facts:
+    manager: apt
+
+- name: Note the kubelet version on the node
+  ansible.builtin.set_fact:
+    kubernetes_upgrade_current: >-
+      {{ (ansible_facts['packages']['kubelet'] | default([{'version': ''}]) | first)['version'] }}
+
+- name: Leave nodes that are already upgraded alone
+  ansible.builtin.meta: end_host
+  when: kubernetes_upgrade_current.startswith(kubernetes_version ~ '-')
+
+- name: Point apt at the target release
+  ansible.builtin.include_role:
+    name: kubernetes_packages
+    tasks_from: repository
+
+- name: Drain the node
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ kubeconfig_path }}
+      - drain
+      - "{{ inventory_hostname }}"
+      - --ignore-daemonsets
+      - --delete-emptydir-data
+      - --timeout=15m
+  delegate_to: "{{ first_control_plane }}"
+  changed_when: true
+
+- name: Upgrade kubeadm
+  ansible.builtin.apt:
+    name: "kubeadm={{ kubernetes_version }}-*"
+    state: present
+    update_cache: true
+    allow_change_held_packages: true
+
+# The first control plane upgrades the cluster: control plane components, etcd, CoreDNS, the
+# cluster configuration. Every other node only upgrades its own components and kubelet settings.
+- name: Upgrade the cluster from the first control plane
+  ansible.builtin.command:
+    cmd: kubeadm upgrade apply v{{ kubernetes_version }} --yes
+  when: inventory_hostname == first_control_plane
+  changed_when: true
+
+- name: Upgrade this node's components
+  ansible.builtin.command:
+    cmd: kubeadm upgrade node
+  when: inventory_hostname != first_control_plane
+  changed_when: true
+
+- name: Upgrade kubelet and kubectl
+  ansible.builtin.apt:
+    name:
+      - "kubelet={{ kubernetes_version }}-*"
+      - "kubectl={{ kubernetes_version }}-*"
+    state: present
+    allow_change_held_packages: true
+
+- name: Hold the Kubernetes packages at the new version
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Restart kubelet on the new version
+  ansible.builtin.systemd_service:
+    name: kubelet
+    state: restarted
+    daemon_reload: true
+
+- name: Wait for the node to be Ready again
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ kubeconfig_path }}
+      - wait
+      - --for=condition=Ready
+      - node/{{ inventory_hostname }}
+      - --timeout=10m
+  delegate_to: "{{ first_control_plane }}"
+  changed_when: false
+
+- name: Let workloads back onto the node
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ kubeconfig_path }}
+      - uncordon
+      - "{{ inventory_hostname }}"
+  delegate_to: "{{ first_control_plane }}"
+  changed_when: true

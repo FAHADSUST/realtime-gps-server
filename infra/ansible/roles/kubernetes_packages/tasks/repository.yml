@@ -1,0 +1,16 @@
+---
+# The pkgs.k8s.io repository of kubernetes_version's minor release. Also used on its own by the
+# upgrade playbook, to point a node at the release it is moving to.
+- name: Install the helper the deb822 repository module needs
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+
+- name: Add the package repository for Kubernetes {{ kubernetes_packages_minor }}
+  ansible.builtin.deb822_repository:
+    name: kubernetes
+    types: deb
+    uris: "{{ kubernetes_packages_repo_url }}"
+    suites: /
+    signed_by: "{{ kubernetes_packages_repo_url }}Release.key"
+    state: present
