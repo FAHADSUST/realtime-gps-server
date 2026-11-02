@@ -1,0 +1,14 @@
+# Managed by Ansible (role: containerd); local edits are overwritten.
+# Registry: {{ item.key }}. Mirrors are tried in order, then the registry itself.
+# containerd reads this file on every pull: changes apply without a restart.
+{% for mirror in item.value %}
+
+[host."{{ mirror.url }}"]
+  capabilities = {{ mirror.capabilities | default(['pull', 'resolve']) | to_json }}
+{% if mirror.override_path | default(false) %}
+  override_path = true
+{% endif %}
+{% if mirror.ca is defined %}
+  ca = {{ mirror.ca | to_json }}
+{% endif %}
+{% endfor %}

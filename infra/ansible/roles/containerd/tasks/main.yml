@@ -1,6 +1,7 @@
 ---
-# containerd and runc are installed from their upstream releases: Ubuntu 24.04 ships containerd 1.7,
-# while Kubernetes 1.36 is built and tested against the 2.x line.
+# containerd and runc come from their upstream releases, pinned in versions.yml. Ubuntu's archive
+# trails upstream (containerd 2.2 in noble-updates) and moves on its own schedule; this way every
+# node runs exactly the version chosen for the cluster.
 
 # Any runtime from apt would compete for the same socket and shadow these binaries.
 - name: Remove container runtimes installed from apt
@@ -73,6 +74,44 @@
   loop:
     - /etc/containerd
     - "{{ containerd_registry_config_dir }}"
+
+- name: Find the registries configured on the node
+  ansible.builtin.find:
+    paths: "{{ containerd_registry_config_dir }}"
+    file_type: directory
+  register: containerd_registry_dirs
+
+- name: Remove registries that are no longer declared
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ containerd_registry_dirs.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: item.path | basename not in containerd_registry_mirrors
+
+- name: Create a directory per mirrored registry
+  ansible.builtin.file:
+    path: "{{ containerd_registry_config_dir }}/{{ item.key }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ containerd_registry_mirrors | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+# No restart: containerd reads hosts.toml on every pull.
+- name: Configure registry mirrors
+  ansible.builtin.template:
+    src: hosts.toml.j2
+    dest: "{{ containerd_registry_config_dir }}/{{ item.key }}/hosts.toml"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ containerd_registry_mirrors | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
 
 - name: Configure containerd
   ansible.builtin.template:

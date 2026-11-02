@@ -7,5 +7,19 @@ containerd_runc_download_base_url: "https://github.com/opencontainers/runc/relea
 # Downloaded archives stay here, so re-runs with an unchanged version download nothing.
 containerd_download_dir: /var/cache/containerd-release
 
-# Per-registry settings (mirrors, CAs): one directory per registry host, each with a hosts.toml.
+# Per-registry settings: one directory per registry host, each with a hosts.toml. The role owns
+# this directory; registries not listed in containerd_registry_mirrors are removed from it.
 containerd_registry_config_dir: /etc/containerd/certs.d
+
+# Pull-through mirrors, tried in order before the registry itself. Keys are registry hosts as they
+# appear in image names; `_default` applies to every registry without its own entry. Per mirror:
+# url (required), capabilities (default [pull, resolve]), override_path (for mirrors that serve a
+# registry under a sub-path, e.g. Harbor proxy-cache projects) and ca (a CA file on the node).
+#
+#   containerd_registry_mirrors:
+#     docker.io:
+#       - url: https://mirror.example.internal
+#     _default:
+#       - url: https://harbor.example.internal/v2/proxy-cache
+#         override_path: true
+containerd_registry_mirrors: {}
