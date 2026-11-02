@@ -36,7 +36,7 @@ check_shell() {
   need shellcheck
   step "shellcheck"
   shellcheck scripts/*.sh infra/terraform/scripts/*.sh gateway/kong/docker-entrypoint-gps.sh \
-    deploy/kubernetes/gps/files/mysql-init.sh
+    deploy/kubernetes/gps/files/mysql-init.sh infra/ansible/roles/etcd_backup/files/etcd-snapshot
 }
 
 check_terraform() {

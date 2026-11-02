@@ -5,8 +5,8 @@
 #   ansible-playbook site.yml --tags kubeadm    # one layer
 #   ansible-playbook site.yml --limit wk-04     # bring a new node in
 #
-# Tags in pipeline order: nodes, kubeadm, crds, cilium, metallb, longhorn, ingress, tls, ops-ui,
-# secrets, argocd.
+# Tags in pipeline order: nodes, kubeadm, backup, crds, cilium, metallb, longhorn, ingress, tls,
+# ops-ui, secrets, argocd.
 # Once group_vars/all/vault.yml exists (the ops-ui layer needs it), every run needs the vault
 # password: add --ask-vault-pass.
 
@@ -48,6 +48,13 @@
   roles:
     - role: control_plane_tools
   tags: [kubeadm]
+
+- name: Back up etcd every night on each control plane
+  hosts: control_plane
+  become: true
+  roles:
+    - role: etcd_backup
+  tags: [backup]
 
 - name: Install the Prometheus Operator CRDs
   hosts: control_plane[0]

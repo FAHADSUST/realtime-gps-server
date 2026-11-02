@@ -1,0 +1,37 @@
+#!/bin/bash
+# Takes a snapshot of this control plane's etcd member, checks it, and keeps the newest ones.
+#
+# etcd runs as a kubeadm static pod whose image carries etcdctl and etcdutl, so the snapshot is
+# taken inside that container, into its data directory (a host path), and then moved to the backup
+# directory. A snapshot holds the whole cluster state, Secrets included: keep it like a password.
+set -euo pipefail
+
+backup_dir="${ETCD_BACKUP_DIR:-/var/backups/etcd}"
+keep="${ETCD_BACKUP_KEEP:-7}"
+name="etcd-$(hostname -s)-$(date -u +%Y%m%dT%H%M%SZ).db"
+
+container="$(crictl ps --name '^etcd$' --state running --quiet | head -n 1)"
+if [ -z "${container}" ]; then
+  echo "etcd is not running on this node" >&2
+  exit 1
+fi
+
+crictl exec "${container}" etcdctl \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+  --cert=/etc/kubernetes/pki/etcd/server.crt \
+  --key=/etc/kubernetes/pki/etcd/server.key \
+  snapshot save "/var/lib/etcd/${name}"
+
+# A snapshot that cannot be read is worse than none: it looks like a backup.
+crictl exec "${container}" etcdutl snapshot status "/var/lib/etcd/${name}" --write-out=table
+
+install -d -m 0700 "${backup_dir}"
+mv "/var/lib/etcd/${name}" "${backup_dir}/${name}"
+chmod 0600 "${backup_dir}/${name}"
+
+# Keep the newest ${keep}.
+find "${backup_dir}" -maxdepth 1 -type f -name 'etcd-*.db' -printf '%T@ %p\n' \
+  | sort -rn | tail -n +"$((keep + 1))" | cut -d' ' -f2- | xargs -r rm -f --
+
+echo "saved ${backup_dir}/${name}"

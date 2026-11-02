@@ -1,0 +1,10 @@
+# Managed by Ansible (role: etcd_backup).
+[Unit]
+Description=Snapshot of the etcd member on this control plane
+After=kubelet.service containerd.service
+
+[Service]
+Type=oneshot
+Environment=ETCD_BACKUP_DIR={{ etcd_backup_dir }}
+Environment=ETCD_BACKUP_KEEP={{ etcd_backup_keep }}
+ExecStart=/usr/local/sbin/etcd-snapshot
