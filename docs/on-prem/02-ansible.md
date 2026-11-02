@@ -17,6 +17,8 @@ are added to the same playbook, one tagged play each. Code: [`infra/ansible`](..
 | `roles/containerd` | containerd and runc from upstream releases; registry mirrors |
 | `roles/kubernetes_packages` | kubelet, kubeadm and kubectl from pkgs.k8s.io, held at one version |
 | `site.yml` | The pipeline: one play per layer, each with its own tag |
+| `upgrade.yml` | Kubernetes upgrades, node by node (see [10 — Operations](10-operations.md#kubernetes)) |
+| `filter_plugins/`, `tests/` | The address-plan filter, and unit tests for it and for the Longhorn disk guard |
 
 ---
 
@@ -247,11 +249,13 @@ until Cilium is installed. Next: [03 — Kubernetes](03-kubernetes.md).
 ## Checks before committing
 
 ```bash
-yamllint -s infra/ansible                                  # from the repository root
-cd infra/ansible
-ansible-playbook -i inventory/hosts.example.yml site.yml --syntax-check
-ansible-lint site.yml
+./scripts/validate-platform.sh ansible yaml            # from the repository root
 ```
+
+It installs the pinned collections, runs the syntax check on `site.yml` and `upgrade.yml`,
+ansible-lint with the production profile and the unit tests, and yamllint. Without arguments the
+script checks the whole platform — Terraform, the charts, alert rules, the log pipeline — as CI does
+on every pull request.
 
 ---
 

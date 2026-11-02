@@ -143,12 +143,14 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P11 | Grafana | ✅ done² ([guide](docs/on-prem/08-observability.md#grafana)) |
 | P12 | Loki + Alloy | ✅ done² ([guide](docs/on-prem/08-observability.md#loki-and-alloy)) |
 | P13 | The application on Kubernetes | ✅ done² ([guide](docs/on-prem/09-application.md)) |
-| P14 | Validation and operations runbook | ⬜ planned |
+| P14 | Validation and operations runbook | ✅ done² ([guide](docs/on-prem/10-operations.md)) |
 
 ² Ansible cannot run on the Windows workstation this is developed on, so the playbooks have not
 been executed against nodes yet. They are checked with yamllint and by rendering every template and
 parsing the result — kubeadm configurations with `kubeadm config validate` from kubeadm 1.36.6,
-manifests with kubeconform. P14 adds ansible-lint and a syntax check on Linux CI.
+manifests with kubeconform, alert rules with promtool, the log pipeline with `alloy validate`. The
+Ansible syntax check and ansible-lint run in CI (`scripts/validate-platform.sh`), which has not run
+yet: nothing on this branch has been pushed.
 
 ---
 
@@ -175,6 +177,24 @@ Docker Compose is for development. Production runs on a Kubernetes cluster you o
 pipeline Terraform → Ansible → kubeadm → Cilium → MetalLB → Longhorn → Ingress-NGINX → cert-manager
 → Argo CD → Prometheus → Grafana → Loki. Architecture, network plan, versions and step-by-step
 guides: **[docs/on-prem](docs/on-prem/README.md)**.
+
+From bare Proxmox to the API answering at `https://api.rls.internal`:
+
+1. **Machines** — in `infra/terraform`, fill in `terraform.tfvars` and `terraform apply`: six VMs,
+   and the Ansible inventory written for you ([01](docs/on-prem/01-terraform.md)).
+2. **Secrets** — copy `infra/ansible/inventory/vault.example.yml` to
+   `group_vars/all/vault.yml`, fill it in, `ansible-vault encrypt` it ([02](docs/on-prem/02-ansible.md#secrets)).
+3. **Cluster and platform** — `ansible-playbook site.yml --ask-vault-pass` in `infra/ansible`:
+   Kubernetes, networking, storage, TLS and Argo CD; Argo CD then deploys monitoring, logging and the
+   image registry from Git ([03](docs/on-prem/03-kubernetes.md) – [08](docs/on-prem/08-observability.md)).
+4. **DNS and trust** — point `*.rls.internal` at `10.10.0.200` and import
+   `infra/ansible/artifacts/rls-onprem-root-ca.crt` on workstations
+   ([04](docs/on-prem/04-networking.md#dns), [06](docs/on-prem/06-tls.md)).
+5. **Release** — `./scripts/publish-images.sh`, then set `apps.gps.imageTag` (and `enabled`) in
+   `deploy/kubernetes/gitops/values.yaml` and merge ([09](docs/on-prem/09-application.md#releasing)).
+
+Day 2 — upgrades, backups, recovery — is in [10 — Operations](docs/on-prem/10-operations.md);
+`./scripts/validate-platform.sh` checks every change without a cluster.
 
 ---
 
@@ -1606,6 +1626,18 @@ credential coming from the vault. A default-deny network policy admits only the 
 system makes, Kong sees real client addresses, and ServiceMonitors, four `promtool`-checked alert
 rules and a Grafana dashboard come with it. Releasing is a Git change: set the image tag and merge.
 Guide: [09 — Application](docs/on-prem/09-application.md).
+
+### P14 — Validation and operations (P14.1 – P14.5)
+
+`scripts/validate-platform.sh` checks the whole platform without a cluster — yamllint, shellcheck,
+Terraform validate and a plan of the example topology, Ansible syntax, ansible-lint and unit tests,
+every Argo CD application rendered as Argo CD would and validated with kubeconform, promtool on the
+alert rules and dashboard queries, `alloy validate` on the log pipeline — and a GitHub Actions
+workflow runs it on every change, with pinned, checksum-verified tools. Each control plane now
+snapshots etcd every night, and `upgrade.yml` performs Kubernetes upgrades the kubeadm way, node by
+node. [10 — Operations](docs/on-prem/10-operations.md) is the runbook: routine work, upgrades of
+every component, what to back up, and step-by-step recovery from a lost worker, a lost control
+plane, lost quorum, a damaged volume, a lost cluster and expired certificates.
 
 <!-- next-commit-log-entry -->
 

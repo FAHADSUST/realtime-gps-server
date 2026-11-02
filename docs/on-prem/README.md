@@ -20,7 +20,8 @@ that is a reviewed commit.
 | [09 — Application](09-application.md) | The GPS services on Kubernetes |
 | [10 — Operations](10-operations.md) | Upgrades, backups, recovery, troubleshooting |
 
-Guides are added as each layer lands; the table above is the target.
+Read them in order to build a cluster; [10 — Operations](10-operations.md) is the runbook once it
+runs. `./scripts/validate-platform.sh` checks all of it without a cluster.
 
 ---
 

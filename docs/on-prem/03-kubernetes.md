@@ -189,7 +189,7 @@ That file holds cluster-admin credentials; keep it like a root password.
 | Remove a worker | `kubectl drain wk-03 --ignore-daemonsets --delete-emptydir-data`, `kubectl delete node wk-03`, then remove it from Terraform |
 | Remove a control plane | Drain it, run `sudo kubeadm reset` on it (this also removes its etcd member), `kubectl delete node`, then Terraform |
 | Rebuild a node under the same name | Delete the old Node object first, or the join is refused |
-| Upgrade Kubernetes | A kubeadm upgrade, control planes first — not a re-run with a new version (the [version guard](02-ansible.md#kubernetes_packages) stops that). See [10 — Operations](10-operations.md) |
+| Upgrade Kubernetes | `ansible-playbook upgrade.yml`: a kubeadm upgrade, control planes first, one node at a time — a re-run of `site.yml` with a new version is refused by the [version guard](02-ansible.md#kubernetes_packages). See [10 — Operations](10-operations.md#kubernetes) |
 
 ---
 
