@@ -15,11 +15,11 @@ spec:
     - {{ . | quote }}
     {{- end }}
   destinations:
+    - server: https://kubernetes.default.svc
+      namespace: {{ .Values.cluster.monitoringNamespace | quote }}
     {{- range .Values.project.namespaces }}
     - server: https://kubernetes.default.svc
       namespace: {{ . | quote }}
-    {{- else }}
-    []
     {{- end }}
   # Charts such as kube-prometheus-stack create cluster-scoped objects (ClusterRoles, webhooks).
   clusterResourceWhitelist:

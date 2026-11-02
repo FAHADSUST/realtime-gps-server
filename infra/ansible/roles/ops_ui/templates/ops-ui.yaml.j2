@@ -1,5 +1,12 @@
 # Managed by Ansible (role: ops_ui). Contains a Secret: applied with output suppressed.
-{% for namespace in ops_ui_sites | map(attribute='namespace') | unique %}
+{% for namespace in ops_ui_secret_only_namespaces %}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ namespace }}
+{% endfor %}
+{% for namespace in (ops_ui_sites | map(attribute='namespace') | list + ops_ui_secret_only_namespaces) | unique %}
 ---
 apiVersion: v1
 kind: Secret

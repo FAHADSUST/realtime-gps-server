@@ -15,6 +15,7 @@ spec:
     helm:
       valuesObject:
         cluster:
+          name: {{ cluster_name }}
           domain: {{ cluster_domain }}
           issuer: {{ cluster_issuer }}
           monitoringNamespace: {{ monitoring_namespace }}

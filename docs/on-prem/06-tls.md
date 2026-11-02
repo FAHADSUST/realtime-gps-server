@@ -99,11 +99,13 @@ UIs without a login of their own are published behind basic authentication, with
 |---|---|
 | `https://hubble.rls.internal` | Cilium Hubble: live network flows |
 | `https://longhorn.rls.internal` | Longhorn: volumes, replicas, backups |
+| `https://prometheus.rls.internal`, `https://alertmanager.rls.internal` | Metrics and alerts, published by Argo CD (see [08 — Observability](08-observability.md)) |
 
 The users and password hashes come from `vault_ops_ui_htpasswd` in the vault (see
 [02 — Ansible](02-ansible.md#secrets)); the role refuses to run while it still holds the example
-placeholder. To add or change a user, edit the vault and re-run `--tags ops-ui`. Prometheus and
-Alertmanager join this list when the monitoring stack arrives.
+placeholder. Ansible writes them into every namespace with such a UI — including `monitoring`,
+whose Ingresses come from Argo CD and only reference the Secret by name. To add or change a user,
+edit the vault and re-run `--tags ops-ui`.
 
 ---
 

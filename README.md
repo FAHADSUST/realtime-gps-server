@@ -139,7 +139,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P7 | Ingress-NGINX | ✅ done² ([guide](docs/on-prem/04-networking.md#ingress-nginx)) |
 | P8 | cert-manager — internal CA | ✅ done² ([guide](docs/on-prem/06-tls.md)) |
 | P9 | Argo CD — GitOps app-of-apps | ✅ done² ([guide](docs/on-prem/07-gitops.md)) |
-| P10 | Prometheus | ⬜ planned |
+| P10 | Prometheus | ✅ done² ([guide](docs/on-prem/08-observability.md)) |
 | P11 | Grafana | ⬜ planned |
 | P12 | Loki + Alloy | ⬜ planned |
 | P13 | The application on Kubernetes | ⬜ planned |
@@ -1555,6 +1555,19 @@ repository from the inventory so Git holds no environment details. The chart def
 AppProject, restricted to known sources and namespaces, and a shared spec for the applications the
 next layers add: automated sync with pruning and self-healing, server-side apply, retries. The play
 waits until Argo CD has synced from Git. Guide: [07 — GitOps](docs/on-prem/07-gitops.md).
+
+### P10 — Prometheus and Alertmanager, from Git
+
+The first application in the app of apps: kube-prometheus-stack 92.17.0, deployed by Argo CD in
+sync wave 0 from the upstream chart plus a values file in this repository, with host names and
+labels filled in per cluster. Prometheus selects every monitor and rule in the cluster, so the
+ServiceMonitors each earlier layer shipped — Cilium, MetalLB, Longhorn, Ingress-NGINX,
+cert-manager, Argo CD — are scraped from its first start, as are the control plane components
+kubeadm exposed. CRDs come from Ansible, Grafana from its own chart, kube-proxy monitoring is off,
+and webhook certificates come from cert-manager so syncs stay quiet. Prometheus keeps 15 days on a
+30 Gi Longhorn volume; Prometheus and Alertmanager are published over TLS behind the operator
+login. Rendered exactly as Argo CD will (88 objects, all schema-valid). Guide:
+[08 — Observability](docs/on-prem/08-observability.md).
 
 <!-- next-commit-log-entry -->
 

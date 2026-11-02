@@ -1,6 +1,7 @@
 # The root Application, created by Ansible, sets `cluster` and `gitops` from the inventory. The
 # defaults below only let `helm template` render the chart on its own.
 cluster:
+  name: rls-onprem
   domain: rls.internal
   issuer: rls-ca
   monitoringNamespace: monitoring
@@ -9,8 +10,19 @@ gitops:
   repoURL: https://github.com/FAHADSUST/realtime-gps-server.git
   targetRevision: main
 
-# What the applications in the `platform` project may use: the Git repository above plus these
-# Helm repositories, and only these namespaces. Each application adds what it needs.
+# What the applications in the `platform` project may use besides the Git repository above and the
+# monitoring namespace: these Helm repositories and namespaces. Each application adds what it needs.
 project:
-  helmRepositories: []
-  namespaces: []
+  helmRepositories:
+    - https://prometheus-community.github.io/helm-charts
+  namespaces:
+    # kube-prometheus-stack adds Services there to scrape the control plane.
+    - kube-system
+
+# One entry per Application. Chart versions are pinned here; static chart values live in values/,
+# cluster-specific ones are set in the Application templates.
+apps:
+  kubePrometheusStack:
+    enabled: true
+    # Prometheus Operator v0.94.2, the same as the CRDs Ansible installs (prometheus-operator-crds).
+    chartVersion: 92.17.0

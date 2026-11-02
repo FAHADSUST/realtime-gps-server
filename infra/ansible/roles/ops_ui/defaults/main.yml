@@ -16,3 +16,8 @@ ops_ui_sites:
     annotations:
       # Backing images are uploaded through the UI.
       nginx.ingress.kubernetes.io/proxy-body-size: 10000m
+
+# Namespaces that only get the basic-auth Secret (and are created if missing): their UIs are
+# published by Argo CD, whose Ingresses reference the Secret by name - Prometheus and Alertmanager.
+ops_ui_secret_only_namespaces:
+  - "{{ monitoring_namespace }}"
