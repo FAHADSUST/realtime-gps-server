@@ -1,0 +1,44 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is git-ignored.
+# The API token is NOT set here: export TF_VAR_proxmox_api_token='terraform@pve!provider=<secret>'
+
+proxmox_endpoint     = "https://pve-01.rls.internal:8006/"
+proxmox_insecure_tls = false
+default_proxmox_node = "pve-01"
+
+template = {
+  vm_id     = 9000
+  node_name = "pve-01"
+}
+
+datastore_id = "local-lvm"
+
+network = {
+  bridge      = "vmbr0"
+  cidr        = "10.10.0.0/24"
+  gateway     = "10.10.0.1"
+  dns_servers = ["10.10.0.1"]
+  dns_domain  = "rls.internal"
+}
+
+cluster_addresses = {
+  api_vip       = "10.10.0.10"
+  lb_pool_start = "10.10.0.200"
+  lb_pool_end   = "10.10.0.230"
+  ingress_ip    = "10.10.0.200"
+}
+
+ssh = {
+  username    = "ubuntu"
+  public_keys = ["ssh-ed25519 AAAA... ops@workstation"]
+}
+
+# Spread nodes across Proxmox hosts with proxmox_node so one host failure takes out at most one
+# control plane.
+nodes = {
+  "cp-01" = { role = "control_plane", vm_id = 1011, ip = "10.10.0.11", cores = 4, memory_mb = 8192, os_disk_gb = 60 }
+  "cp-02" = { role = "control_plane", vm_id = 1012, ip = "10.10.0.12", cores = 4, memory_mb = 8192, os_disk_gb = 60 }
+  "cp-03" = { role = "control_plane", vm_id = 1013, ip = "10.10.0.13", cores = 4, memory_mb = 8192, os_disk_gb = 60 }
+  "wk-01" = { role = "worker", vm_id = 1021, ip = "10.10.0.21", cores = 8, memory_mb = 16384, os_disk_gb = 80, data_disk_gb = 200 }
+  "wk-02" = { role = "worker", vm_id = 1022, ip = "10.10.0.22", cores = 8, memory_mb = 16384, os_disk_gb = 80, data_disk_gb = 200 }
+  "wk-03" = { role = "worker", vm_id = 1023, ip = "10.10.0.23", cores = 8, memory_mb = 16384, os_disk_gb = 80, data_disk_gb = 200 }
+}
