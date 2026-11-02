@@ -28,13 +28,15 @@ itself) with Python 3.11 or newer:
 ```bash
 python3 -m venv ~/.venvs/rls-ansible
 . ~/.venvs/rls-ansible/bin/activate
-pip install 'ansible-core>=2.18'
+pip install 'ansible-core>=2.18' passlib bcrypt
 cd infra/ansible
 ansible-galaxy collection install -r requirements.yml
 ```
 
 Collections land in `infra/ansible/collections/` (git-ignored), so the playbooks always run with the
-versions in `requirements.yml`, whatever else is installed on the machine.
+versions in `requirements.yml`, whatever else is installed on the machine. `passlib` and `bcrypt`
+let Ansible compute bcrypt password hashes (for the image registry); Python 3.13 removed the
+`crypt` module it would otherwise fall back on.
 
 **SSH access** as the inventory's `ansible_user` (`ubuntu`), with the private key matching the
 public key Terraform put on the nodes. Load it into your agent with `ssh-add`. The first connection

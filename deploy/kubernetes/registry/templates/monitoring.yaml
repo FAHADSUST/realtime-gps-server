@@ -1,0 +1,46 @@
+# Only two clients ever reach the registry pod: Ingress-NGINX, for every push and pull - nodes pull
+# through it too - and Prometheus, for metrics.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry
+  labels:
+    app.kubernetes.io/name: registry
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: registry
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - port: http
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.cluster.monitoringNamespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: registry
+  labels:
+    app.kubernetes.io/name: registry
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: registry
+  endpoints:
+    - port: metrics
+      path: /metrics

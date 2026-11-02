@@ -24,6 +24,11 @@ vault_argocd_admin_password_bcrypt: CHANGE-ME
 # Grafana's admin account (user "admin"). Any strong password, e.g. openssl rand -base64 24
 vault_grafana_admin_password: CHANGE-ME
 
+# The image registry's account (user "gps", used to push images and by the cluster to pull them).
+# Ansible derives the registry's bcrypt htpasswd from it. Letters and digits only, e.g.
+#   openssl rand -hex 24
+vault_registry_password: CHANGE-ME
+
 # Only if gitops_repo_url is a private repository: a user and a read-only access token.
 # vault_gitops_repo_username: CHANGE-ME
 # vault_gitops_repo_password: CHANGE-ME

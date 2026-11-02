@@ -21,6 +21,7 @@ project:
   namespaces:
     # kube-prometheus-stack adds Services there to scrape the control plane.
     - kube-system
+    - registry
 
 # One entry per Application. Chart versions are pinned here; static chart values live in values/,
 # cluster-specific ones are set in the Application templates.
@@ -41,3 +42,6 @@ apps:
     enabled: true
     # Alloy v1.21.3.
     chartVersion: 1.15.0
+  # deploy/kubernetes/registry in this repository; its version is the image in that chart.
+  registry:
+    enabled: true

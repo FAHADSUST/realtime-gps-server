@@ -1,12 +1,14 @@
 ---
-- name: Check that no secret still holds an example placeholder
+# Checks the vault itself, not the Secrets: a value derived from a placeholder (a password hash,
+# for instance) would no longer contain it.
+- name: Check that no vault value is still an example placeholder
   ansible.builtin.assert:
     that: >-
-      platform_secrets_list | map(attribute='data') | map('dict2items') | flatten
-      | map(attribute='value') | map('string') | select('search', 'CHANGE-ME') | list | length == 0
+      query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^vault_'))
+      | map('string') | select('search', 'CHANGE-ME') | list | length == 0
     fail_msg: >-
-      A platform secret still holds CHANGE-ME. Fill in every value in
-      inventory/group_vars/all/vault.yml (docs/on-prem/02-ansible.md, "Secrets").
+      A value in inventory/group_vars/all/vault.yml still holds CHANGE-ME. Fill in every value
+      (docs/on-prem/02-ansible.md, "Secrets").
     quiet: true
   no_log: true
 

@@ -1,0 +1,8 @@
+apiVersion: v2
+name: registry
+description: >-
+  The cluster's own container registry (CNCF Distribution) at registry.<domain>: the GPS images are
+  pushed here and pulled from here, so the cluster needs no public registry for its own software.
+type: application
+version: 1.0.0
+appVersion: "3.1.2"

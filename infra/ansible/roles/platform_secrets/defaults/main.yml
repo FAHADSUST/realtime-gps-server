@@ -1,10 +1,22 @@
 ---
 # Secrets that applications deployed by Argo CD reference by name. Git never holds their values:
 # Ansible writes them from the vault, the manifests in Git only name them. Each entry becomes one
-# Secret; its namespace is created if missing.
+# Secret (of `type`, Opaque by default); its namespace is created if missing.
 platform_secrets_list:
   - name: grafana-admin
     namespace: "{{ monitoring_namespace }}"
     data:
       admin-user: admin
       admin-password: "{{ vault_grafana_admin_password }}"
+  # The registry only accepts bcrypt. The salt is derived rather than random, so the Secret - and
+  # the registry - only change when the password does.
+  - name: registry-htpasswd
+    namespace: registry
+    data:
+      htpasswd: >-
+        {{ platform_secrets_registry_user }}:{{ vault_registry_password
+        | password_hash('bcrypt', salt=platform_secrets_registry_salt, rounds=12) }}
+
+# The registry account that pushes the images and pulls them into the cluster.
+platform_secrets_registry_user: gps
+platform_secrets_registry_salt: "{{ ((cluster_name ~ vault_registry_password) | hash('sha256'))[0:21] }}e"
