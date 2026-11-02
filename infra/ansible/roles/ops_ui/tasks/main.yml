@@ -1,0 +1,18 @@
+---
+- name: Check that the operator UI credentials are in the vault
+  ansible.builtin.assert:
+    that:
+      - vault_ops_ui_htpasswd is defined
+      - "'CHANGE-ME' not in vault_ops_ui_htpasswd"
+    fail_msg: >-
+      vault_ops_ui_htpasswd is not set. Create inventory/group_vars/all/vault.yml from
+      inventory/vault.example.yml (docs/on-prem/02-ansible.md, "Secrets").
+    quiet: true
+
+- name: Publish the operator UIs
+  ansible.builtin.include_role:
+    name: kubectl_apply
+  vars:
+    kubectl_apply_name: operator UIs
+    kubectl_apply_manifest: "{{ lookup('ansible.builtin.template', 'ops-ui.yaml.j2') }}"
+    kubectl_apply_no_log: true

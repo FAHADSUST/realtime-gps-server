@@ -136,7 +136,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P5 | MetalLB — L2 address pool | ✅ done² ([guide](docs/on-prem/04-networking.md)) |
 | P6 | Longhorn — replicated storage | ✅ done² ([guide](docs/on-prem/05-storage.md)) |
 | P7 | Ingress-NGINX | ✅ done² ([guide](docs/on-prem/04-networking.md#ingress-nginx)) |
-| P8 | cert-manager — internal CA | ⬜ planned |
+| P8 | cert-manager — internal CA | ✅ done² ([guide](docs/on-prem/06-tls.md)) |
 | P9 | Argo CD — GitOps app-of-apps | ⬜ planned |
 | P10 | Prometheus | ⬜ planned |
 | P11 | Grafana | ⬜ planned |
@@ -1530,6 +1530,18 @@ the project is archived, a CiliumNetworkPolicy lets only the API server reach it
 — the path the 2025 IngressNightmare attacks used — and only Prometheus reach its metrics. The guide
 adds the DNS records and a migration path to Cilium's Gateway API. Guide:
 [04 — Networking](docs/on-prem/04-networking.md#ingress-nginx).
+
+### P8 — cert-manager: an internal CA, trusted everywhere (P8.1 – P8.4)
+
+`site.yml --tags tls` installs cert-manager v1.21.3 in HA and creates the cluster's own root CA —
+10 years, ECDSA, its key never rotated so trust survives renewals — behind the `rls-ca`
+ClusterIssuer; an enterprise intermediate can be used instead. No internet or ACME is involved.
+Every node trusts the CA (read without touching its private key), containerd reloads it for
+in-cluster registries, and a copy is saved for workstations. Ingress-NGINX serves a cert-manager
+`*.rls.internal` certificate by default. Secrets now have one home: an Ansible Vault file created
+from `inventory/vault.example.yml`. Its first entry protects the operator UIs, now published at
+`hubble.rls.internal` and `longhorn.rls.internal` over TLS behind basic authentication, applied
+with output suppressed. Guide: [06 — TLS](docs/on-prem/06-tls.md).
 
 <!-- next-commit-log-entry -->
 

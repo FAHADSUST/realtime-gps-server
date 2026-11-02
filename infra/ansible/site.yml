@@ -5,7 +5,9 @@
 #   ansible-playbook site.yml --tags kubeadm    # one layer
 #   ansible-playbook site.yml --limit wk-04     # bring a new node in
 #
-# Tags in pipeline order: nodes, kubeadm, crds, cilium, metallb, longhorn, ingress, tls.
+# Tags in pipeline order: nodes, kubeadm, crds, cilium, metallb, longhorn, ingress, tls, ops-ui.
+# Once group_vars/all/vault.yml exists (the ops-ui layer needs it), every run needs the vault
+# password: add --ask-vault-pass.
 
 - name: Prepare every node
   hosts: k8s_cluster
@@ -101,3 +103,10 @@
   roles:
     - role: cluster_ca_trust
   tags: [tls]
+
+- name: Publish the operator UIs
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - role: ops_ui
+  tags: [ops-ui]

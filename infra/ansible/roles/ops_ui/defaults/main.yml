@@ -1,0 +1,18 @@
+---
+# htpasswd lines for everyone allowed into the operator UIs, from the vault.
+ops_ui_htpasswd: "{{ vault_ops_ui_htpasswd }}"
+
+# Operator UIs without a login of their own, published as https://<name>.<cluster_domain> behind
+# basic authentication. annotations: extra Ingress-NGINX annotations for one site.
+ops_ui_sites:
+  - name: hubble
+    namespace: kube-system
+    service: hubble-ui
+    port: 80
+  - name: longhorn
+    namespace: longhorn-system
+    service: longhorn-frontend
+    port: 80
+    annotations:
+      # Backing images are uploaded through the UI.
+      nginx.ingress.kubernetes.io/proxy-body-size: 10000m

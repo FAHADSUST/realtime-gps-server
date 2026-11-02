@@ -15,6 +15,7 @@
   register: kubectl_apply_diff
   changed_when: false
   failed_when: kubectl_apply_diff.rc > 1
+  no_log: "{{ kubectl_apply_no_log }}"
 
 - name: "Apply: {{ kubectl_apply_name }}"
   ansible.builtin.command:
@@ -28,3 +29,4 @@
     stdin: "{{ kubectl_apply_manifest }}"
   when: kubectl_apply_diff.rc == 1
   changed_when: true
+  no_log: "{{ kubectl_apply_no_log }}"

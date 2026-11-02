@@ -151,6 +151,9 @@ kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe --last 2
 kubectl -n kube-system port-forward svc/hubble-ui 12000:80                             # http://localhost:12000
 ```
 
+Once the TLS layer is in place, the Hubble UI is also at `https://hubble.rls.internal`, behind basic
+authentication (see [06 — TLS](06-tls.md#operator-uis)).
+
 For a thorough check, run `cilium connectivity test` from a workstation with the
 [Cilium CLI](https://github.com/cilium/cilium-cli) and this cluster's kubeconfig; it deploys test
 workloads into `cilium-test-*` namespaces, which you delete afterwards.

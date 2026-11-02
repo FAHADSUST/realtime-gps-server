@@ -101,9 +101,10 @@ kubectl -n longhorn-system get volumes.longhorn.io                    # robustne
 kubectl delete pod,pvc longhorn-check
 ```
 
-**The UI** has no login of its own, so it is not exposed yet. For now:
-`kubectl -n longhorn-system port-forward svc/longhorn-frontend 8080:80`, then
-`http://localhost:8080`.
+**The UI** has no login of its own. Once the TLS layer is in place it is published at
+`https://longhorn.rls.internal` behind basic authentication (see
+[06 — TLS](06-tls.md#operator-uis)); before that,
+`kubectl -n longhorn-system port-forward svc/longhorn-frontend 8080:80` and `http://localhost:8080`.
 
 ---
 
