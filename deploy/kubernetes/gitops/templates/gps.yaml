@@ -1,0 +1,29 @@
+{{- if .Values.apps.gps.enabled }}
+# The GPS services, Kong and their data stores. Wave 3: last, monitored from its first pod and
+# pulling its images from the registry of wave 2.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gps
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  {{- include "gitops.applicationSpec" (dict "namespace" "gps") | nindent 2 }}
+  source:
+    repoURL: {{ .Values.gitops.repoURL }}
+    targetRevision: {{ .Values.gitops.targetRevision }}
+    path: deploy/kubernetes/gps
+    helm:
+      valuesObject:
+        cluster:
+          domain: {{ .Values.cluster.domain }}
+          issuer: {{ .Values.cluster.issuer }}
+          monitoringNamespace: {{ .Values.cluster.monitoringNamespace }}
+          podCidr: {{ .Values.cluster.podCidr }}
+        images:
+          registry: {{ printf "registry.%s" .Values.cluster.domain }}
+          tag: {{ required "apps.gps.imageTag must name a published release" .Values.apps.gps.imageTag | quote }}
+{{- end }}

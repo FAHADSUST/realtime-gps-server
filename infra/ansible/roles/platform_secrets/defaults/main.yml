@@ -16,6 +16,26 @@ platform_secrets_list:
       htpasswd: >-
         {{ platform_secrets_registry_user }}:{{ vault_registry_password
         | password_hash('bcrypt', salt=platform_secrets_registry_salt, rounds=12) }}
+  # The GPS application: every credential its services and data stores use.
+  - name: gps-secrets
+    namespace: gps
+    data:
+      gateway-token: "{{ vault_gateway_token }}"
+      jwt-secret: "{{ vault_jwt_secret }}"
+      server-secret: "{{ vault_server_secret }}"
+      mysql-root-password: "{{ vault_mysql_root_password }}"
+      mysql-id-password: "{{ vault_mysql_id_password }}"
+      mysql-history-password: "{{ vault_mysql_history_password }}"
+      rabbitmq-password: "{{ vault_rabbitmq_password }}"
+      redis-password: "{{ vault_redis_password }}"
+  # Lets the cluster pull the GPS images from the registry, with the same account.
+  - name: registry-pull
+    namespace: gps
+    type: kubernetes.io/dockerconfigjson
+    data:
+      .dockerconfigjson: >-
+        {{ {'auths': {'registry.' ~ cluster_domain: {'auth':
+        (platform_secrets_registry_user ~ ':' ~ vault_registry_password) | b64encode}}} | to_json }}
 
 # The registry account that pushes the images and pulls them into the cluster.
 platform_secrets_registry_user: gps

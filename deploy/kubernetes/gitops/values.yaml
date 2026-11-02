@@ -5,6 +5,7 @@ cluster:
   domain: rls.internal
   issuer: rls-ca
   monitoringNamespace: monitoring
+  podCidr: 10.244.0.0/16
 
 gitops:
   repoURL: https://github.com/FAHADSUST/realtime-gps-server.git
@@ -22,6 +23,7 @@ project:
     # kube-prometheus-stack adds Services there to scrape the control plane.
     - kube-system
     - registry
+    - gps
 
 # One entry per Application. Chart versions are pinned here; static chart values live in values/,
 # cluster-specific ones are set in the Application templates.
@@ -45,3 +47,9 @@ apps:
   # deploy/kubernetes/registry in this repository; its version is the image in that chart.
   registry:
     enabled: true
+  # deploy/kubernetes/gps in this repository. A release is a Git change: publish the images
+  # (scripts/publish-images.sh), then set imageTag to the tag it printed. Off until the first
+  # release exists - without images the pods could not start.
+  gps:
+    enabled: false
+    imageTag: ""

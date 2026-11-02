@@ -1,0 +1,50 @@
+# Alert rules for the GPS services, included verbatim (not templated by Helm) in a PrometheusRule.
+- name: gps
+  rules:
+    - alert: GpsComponentDown
+      expr: up{namespace="gps"} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{ $labels.job }} is down"
+        description: "Prometheus has not been able to scrape {{ $labels.pod }} for two minutes."
+
+    - alert: GpsHighErrorRate
+      expr: |
+        (
+          sum by (application) (rate(http_server_requests_seconds_count{namespace="gps", status=~"5.."}[5m]))
+          /
+          sum by (application) (rate(http_server_requests_seconds_count{namespace="gps"}[5m]))
+        ) > 0.05
+        and
+        sum by (application) (rate(http_server_requests_seconds_count{namespace="gps"}[5m])) > 0.1
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{ $labels.application }} answers more than 5% of requests with a server error"
+        description: "{{ $value | humanizePercentage }} of requests failed over the last 10 minutes."
+
+    - alert: GpsSlowRequests
+      expr: |
+        histogram_quantile(0.95,
+          sum by (application, le) (rate(http_server_requests_seconds_bucket{namespace="gps"}[5m]))
+        ) > 1
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{ $labels.application }}: 95th percentile latency above 1 s"
+        description: "p95 is {{ $value | humanizeDuration }}."
+
+    - alert: GpsLocationQueueBacklog
+      expr: sum(rabbitmq_queue_messages_ready{namespace="gps"}) > 10000
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Location messages are piling up in RabbitMQ"
+        description: >-
+          {{ $value }} messages are waiting: the history service is not keeping up, or is not
+          consuming at all.

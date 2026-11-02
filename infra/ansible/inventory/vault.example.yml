@@ -29,6 +29,20 @@ vault_grafana_admin_password: CHANGE-ME
 #   openssl rand -hex 24
 vault_registry_password: CHANGE-ME
 
+# The GPS application. Letters and digits only for all of them (they end up in SQL and in Kong's
+# configuration); `openssl rand -hex 32` is a good source.
+#   gateway token  - Kong presents it on every proxied request; the services refuse requests without it
+#   jwt secret     - signs users' access tokens (HS256): at least 32 characters
+#   server secret  - required to register a company
+vault_gateway_token: CHANGE-ME
+vault_jwt_secret: CHANGE-ME
+vault_server_secret: CHANGE-ME
+vault_mysql_root_password: CHANGE-ME
+vault_mysql_id_password: CHANGE-ME
+vault_mysql_history_password: CHANGE-ME
+vault_rabbitmq_password: CHANGE-ME
+vault_redis_password: CHANGE-ME
+
 # Only if gitops_repo_url is a private repository: a user and a read-only access token.
 # vault_gitops_repo_username: CHANGE-ME
 # vault_gitops_repo_password: CHANGE-ME

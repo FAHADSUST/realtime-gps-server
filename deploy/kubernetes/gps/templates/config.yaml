@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gps-config
+  labels:
+    {{- include "gps.labels" (dict "name" "gps-config") | nindent 4 }}
+data:
+  application.yml: |
+    {{- .Files.Get "files/application.yml" | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-init
+  labels:
+    {{- include "gps.labels" (dict "name" "mysql") | nindent 4 }}
+data:
+  01-schemas.sh: |
+    {{- .Files.Get "files/mysql-init.sh" | nindent 4 }}

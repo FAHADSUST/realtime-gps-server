@@ -19,6 +19,7 @@ spec:
           domain: {{ cluster_domain }}
           issuer: {{ cluster_issuer }}
           monitoringNamespace: {{ monitoring_namespace }}
+          podCidr: {{ pod_cidr }}
         gitops:
           repoURL: {{ gitops_repo_url }}
           targetRevision: {{ gitops_revision }}

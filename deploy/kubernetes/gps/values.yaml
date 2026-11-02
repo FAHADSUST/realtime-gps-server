@@ -1,0 +1,96 @@
+# Set by the Argo CD Application from the cluster's settings; the defaults only let `helm template`
+# render the chart on its own.
+cluster:
+  domain: rls.internal
+  issuer: rls-ca
+  monitoringNamespace: monitoring
+  # Kong trusts X-Forwarded-For only from addresses in here: the pod network, where Ingress-NGINX
+  # runs. Per-client rate limits then see the real client, not the ingress pod.
+  podCidr: 10.244.0.0/16
+
+images:
+  registry: registry.rls.internal
+  # The tag scripts/publish-images.sh printed; every GPS image of a release shares it.
+  tag: ""
+  # Written by Ansible from the vault: the registry account, for pulls.
+  pullSecret: registry-pull
+
+# Every secret comes from the gps-secrets Secret, written by Ansible from the vault (see
+# infra/ansible/roles/platform_secrets); the manifests only name it.
+
+services:
+  id-service:
+    replicas: 2
+    port: 8081
+    # Restricted endpoints (/api/v1/internal/**, /api/v1/company/**): only Kong's rls_auth reaches it.
+    internalPort: 9081
+    resources:
+      requests: {cpu: 250m, memory: 512Mi}
+      limits: {memory: 768Mi}
+    env:
+      - {name: INTERNAL_PORT, value: "9081"}
+      - {name: MYSQL_HOST, value: mysql}
+      - {name: MYSQL_DATABASE, value: gps_id}
+      - {name: MYSQL_USER, value: gps_id}
+      - {name: MYSQL_PASSWORD, valueFrom: {secretKeyRef: {name: gps-secrets, key: mysql-id-password}}}
+      - {name: SERVER_SECRET, valueFrom: {secretKeyRef: {name: gps-secrets, key: server-secret}}}
+      - {name: JWT_SECRET, valueFrom: {secretKeyRef: {name: gps-secrets, key: jwt-secret}}}
+  ping-service:
+    replicas: 2
+    port: 8082
+    resources:
+      requests: {cpu: 250m, memory: 512Mi}
+      limits: {memory: 768Mi}
+    env:
+      - {name: REDIS_HOST, value: redis}
+      - {name: SPRING_DATA_REDIS_PASSWORD, valueFrom: {secretKeyRef: {name: gps-secrets, key: redis-password}}}
+      - {name: RABBITMQ_HOST, value: rabbitmq}
+      - {name: RABBITMQ_USER, value: gps}
+      - {name: RABBITMQ_PASSWORD, valueFrom: {secretKeyRef: {name: gps-secrets, key: rabbitmq-password}}}
+  history-service:
+    replicas: 2
+    port: 8083
+    resources:
+      requests: {cpu: 250m, memory: 512Mi}
+      limits: {memory: 768Mi}
+    env:
+      - {name: MYSQL_HOST, value: mysql}
+      - {name: MYSQL_DATABASE, value: gps_history}
+      - {name: MYSQL_USER, value: gps_history}
+      - {name: MYSQL_PASSWORD, valueFrom: {secretKeyRef: {name: gps-secrets, key: mysql-history-password}}}
+      - {name: RABBITMQ_HOST, value: rabbitmq}
+      - {name: RABBITMQ_USER, value: gps}
+      - {name: RABBITMQ_PASSWORD, valueFrom: {secretKeyRef: {name: gps-secrets, key: rabbitmq-password}}}
+
+kong:
+  # Two for availability. Rate limits use `policy: local`, so each replica counts on its own.
+  replicas: 2
+  resources:
+    requests: {cpu: 250m, memory: 256Mi}
+    limits: {memory: 512Mi}
+
+mysql:
+  image: mysql:8.4.13
+  storage: 20Gi
+  resources:
+    requests: {cpu: 250m, memory: 1Gi}
+    limits: {memory: 2Gi}
+
+redis:
+  image: redis:7.4.12-alpine
+  storage: 5Gi
+  # Below the container limit: with noeviction, Redis refuses writes at this point instead of being
+  # killed - and never silently drops a user's last position.
+  maxmemory: 768mb
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 1Gi}
+
+rabbitmq:
+  image: rabbitmq:4.4.0-management
+  storage: 8Gi
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {memory: 1Gi}
+
+storageClass: longhorn

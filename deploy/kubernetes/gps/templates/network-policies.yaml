@@ -1,0 +1,96 @@
+# Nothing reaches a GPS pod unless a rule below lets it, and each rule mirrors a real connection:
+#
+#   Ingress-NGINX -> kong -> id-service (public and internal port), ping-service
+#   id-service, history-service -> mysql      ping-service -> redis
+#   ping-service, history-service -> rabbitmq Prometheus -> every metrics port
+#
+# A service port reachable from anywhere else could be called without going through Kong. The
+# kubelet's health checks come from the node itself, which Cilium always allows.
+{{- $prometheus := dict "namespace" .Values.cluster.monitoringNamespace }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  labels:
+    {{- include "gps.labels" (dict "name" "network-policy") | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kong
+  labels:
+    {{- include "gps.labels" (dict "name" "kong") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kong
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - port: proxy
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $prometheus.namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: status
+{{- $rules := dict
+  "id-service" (dict "callers" (list "kong") "ports" (list "http" "internal"))
+  "ping-service" (dict "callers" (list "kong") "ports" (list "http"))
+  "history-service" (dict "callers" (list) "ports" (list))
+  "mysql" (dict "callers" (list "id-service" "history-service") "ports" (list "mysql"))
+  "redis" (dict "callers" (list "ping-service") "ports" (list "redis"))
+  "rabbitmq" (dict "callers" (list "ping-service" "history-service") "ports" (list "amqp")) }}
+{{- $metricsPort := dict "id-service" "http" "ping-service" "http" "history-service" "http" "rabbitmq" "metrics" }}
+{{- range $target, $rule := $rules }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $target }}
+  labels:
+    {{- include "gps.labels" (dict "name" $target) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $target }}
+  policyTypes: [Ingress]
+  ingress:
+    {{- if $rule.callers }}
+    - from:
+        {{- range $rule.callers }}
+        {{- include "gps.peer" . | nindent 8 }}
+        {{- end }}
+      ports:
+        {{- range $rule.ports }}
+        - port: {{ . }}
+        {{- end }}
+    {{- end }}
+    {{- if hasKey $metricsPort $target }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $prometheus.namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: {{ get $metricsPort $target }}
+    {{- end }}
+    {{- if not (or $rule.callers (hasKey $metricsPort $target)) }}
+    []
+    {{- end }}
+{{- end }}

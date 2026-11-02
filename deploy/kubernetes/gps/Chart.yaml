@@ -1,0 +1,7 @@
+apiVersion: v2
+name: gps
+description: >-
+  The Realtime GPS Server on Kubernetes: the id, ping and history services, Kong as the API
+  gateway at api.<domain>, and the MySQL, Redis and RabbitMQ they use.
+type: application
+version: 1.0.0

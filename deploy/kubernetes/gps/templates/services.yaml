@@ -1,0 +1,130 @@
+# The id, ping and history services: the same shape for each, details in values.yaml.
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "gps.labels" (dict "name" $name) | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  template:
+    metadata:
+      labels:
+        {{- include "gps.labels" (dict "name" $name) | nindent 8 }}
+      annotations:
+        # Restart when the shared configuration changes.
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") $ | sha256sum }}
+    spec:
+      imagePullSecrets:
+        - name: {{ $.Values.images.pullSecret }}
+      # The images run as a non-root user; the uid is fixed here so Kubernetes can verify it.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      # Replicas on different workers where possible.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $name }}
+      # Graceful shutdown (20 s per phase) plus the pre-stop pause, with room to spare.
+      terminationGracePeriodSeconds: 40
+      containers:
+        - name: {{ $name }}
+          image: {{ include "gps.image" (dict "root" $ "name" $name) }}
+          ports:
+            - name: http
+              containerPort: {{ $svc.port }}
+            {{- if $svc.internalPort }}
+            - name: internal
+              containerPort: {{ $svc.internalPort }}
+            {{- end }}
+          env:
+            # Kubernetes provides discovery (DNS) and configuration (ConfigMaps, Secrets).
+            - name: SPRING_CLOUD_CONSUL_ENABLED
+              value: "false"
+            - name: SERVER_PORT
+              value: {{ $svc.port | quote }}
+            - name: GPS_COMMON_GATEWAY_TOKEN
+              valueFrom: {secretKeyRef: {name: gps-secrets, key: gateway-token}}
+            {{- toYaml $svc.env | nindent 12 }}
+          # A JVM takes a while to start; liveness only applies once it has.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+          # Lets Services and Kong stop sending traffic before the server starts shutting down.
+          lifecycle:
+            preStop:
+              exec:
+                command: [sleep, "5"]
+          securityContext:
+            {{- include "gps.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: gps-config
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "gps.labels" (dict "name" $name) | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $name }}
+  ports:
+    - name: http
+      port: {{ $svc.port }}
+      targetPort: http
+    {{- if $svc.internalPort }}
+    - name: internal
+      port: {{ $svc.internalPort }}
+      targetPort: internal
+    {{- end }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "gps.labels" (dict "name" $name) | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+{{- end }}
