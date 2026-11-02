@@ -1,0 +1,23 @@
+---
+# Terraform writes inventory/hosts.yml in exactly this shape. For bare metal or machines created by
+# other means, copy this file to hosts.yml and fill it in by hand.
+all:
+  vars:
+    ansible_user: ubuntu
+    node_network_cidr: 10.10.0.0/24
+    kubernetes_api_vip: 10.10.0.10
+    metallb_address_pool: 10.10.0.200-10.10.0.230
+    ingress_lb_ip: 10.10.0.200
+  children:
+    k8s_cluster:
+      children:
+        control_plane:
+          hosts:
+            cp-01: {ansible_host: 10.10.0.11, node_ip: 10.10.0.11}
+            cp-02: {ansible_host: 10.10.0.12, node_ip: 10.10.0.12}
+            cp-03: {ansible_host: 10.10.0.13, node_ip: 10.10.0.13}
+        workers:
+          hosts:
+            wk-01: {ansible_host: 10.10.0.21, node_ip: 10.10.0.21}
+            wk-02: {ansible_host: 10.10.0.22, node_ip: 10.10.0.22}
+            wk-03: {ansible_host: 10.10.0.23, node_ip: 10.10.0.23}

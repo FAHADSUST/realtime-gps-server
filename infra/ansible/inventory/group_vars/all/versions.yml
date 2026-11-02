@@ -1,0 +1,21 @@
+---
+# Every version the platform installs, in one place. Upgrading a component starts here.
+# Pinned and checked against upstream in November 2026; see docs/on-prem/README.md for why.
+
+kubernetes_version: "1.36.6"
+containerd_version: "2.4.2"
+runc_version: "1.5.2"
+# kubeadm 1.36 expects this sandbox image; containerd pins the same one so the two never disagree.
+pause_image: registry.k8s.io/pause:3.10.2
+kube_vip_version: v1.3.1
+helm_version: v4.3.1
+
+# Helm charts installed by Ansible.
+prometheus_operator_crds_chart_version: 32.0.2
+cilium_chart_version: 1.20.4
+metallb_chart_version: 0.16.1
+longhorn_chart_version: 1.13.0
+# Final release: the project was archived in March 2026 (see docs/on-prem/04-networking.md).
+ingress_nginx_chart_version: 4.15.1
+cert_manager_chart_version: v1.21.3
+argocd_chart_version: 10.11.6
