@@ -131,7 +131,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P0 | Architecture, network plan, version matrix | ✅ done |
 | P1 | Terraform — Proxmox VMs and inventory | ✅ done ([guide](docs/on-prem/01-terraform.md)) |
 | P2 | Ansible — node baseline, containerd, Kubernetes packages | ✅ done² ([guide](docs/on-prem/02-ansible.md)) |
-| P3 | kubeadm — HA control plane with kube-vip | ⬜ planned |
+| P3 | kubeadm — HA control plane with kube-vip | ✅ done² ([guide](docs/on-prem/03-kubernetes.md)) |
 | P4 | Cilium — CNI, kube-proxy replacement, Hubble | ⬜ planned |
 | P5 | MetalLB — L2 address pool | ⬜ planned |
 | P6 | Longhorn — replicated storage | ⬜ planned |
@@ -146,7 +146,8 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 
 ² Ansible cannot run on the Windows workstation this is developed on, so the playbooks have not
 been executed against nodes yet. They are checked with yamllint and by rendering every template and
-parsing the result; P14 adds ansible-lint and a syntax check on Linux CI.
+parsing the result — kubeadm configurations with `kubeadm config validate` from kubeadm 1.36.6,
+manifests with kubeconform. P14 adds ansible-lint and a syntax check on Linux CI.
 
 ---
 
@@ -1474,6 +1475,18 @@ an existing node to another Kubernetes version outside a kubeadm upgrade, becaus
 never get ahead of its API server. Registry mirrors and overridable download locations let nodes
 without internet access install everything from inside the network. Every version lives in
 `group_vars/all/versions.yml`. Guide: [02 — Ansible](docs/on-prem/02-ansible.md).
+
+### P3 — kubeadm: HA control plane behind kube-vip (P3.1 – P3.4)
+
+`site.yml --tags kubeadm,crds` builds the cluster: `kubeadm init` on the first control plane from a
+validated v1beta4 configuration, then the other control planes join one at a time and the workers
+in parallel. Every client reaches the API through a virtual IP that kube-vip moves between the
+control planes by leader election, so losing a control plane costs a pause of seconds, not the API.
+kube-proxy is disabled in the stored cluster configuration, leaving services to Cilium even across
+upgrades. Join credentials are created per node, live for minutes and are deleted after use. The
+control planes get kubectl access and Helm 4.3.1, and the Prometheus Operator CRDs are installed so
+every later layer can ship its monitoring objects. Guide:
+[03 — Kubernetes](docs/on-prem/03-kubernetes.md).
 
 <!-- next-commit-log-entry -->
 

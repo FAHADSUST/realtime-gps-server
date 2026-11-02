@@ -22,6 +22,12 @@
     group: root
     mode: "0600"
 
+# Rejects unknown fields and invalid values before anything is changed on the node.
+- name: Validate the kubeadm configuration
+  ansible.builtin.command:
+    cmd: kubeadm config validate --config /etc/kubernetes/kubeadm-config.yaml
+  changed_when: false
+
 - name: Bootstrap the control plane
   when: not kubeadm_init_admin_conf.stat.exists
   block:

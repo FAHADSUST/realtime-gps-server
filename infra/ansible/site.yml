@@ -1,8 +1,11 @@
 ---
 # The whole pipeline, in order. Every play is tagged so one layer can be re-run on its own:
 #
-#   ansible-playbook site.yml                 # everything
-#   ansible-playbook site.yml --tags nodes    # just node preparation
+#   ansible-playbook site.yml                   # everything
+#   ansible-playbook site.yml --tags kubeadm    # one layer
+#   ansible-playbook site.yml --limit wk-04     # bring a new node in
+#
+# Tags in pipeline order: nodes, kubeadm, crds.
 
 - name: Prepare every node
   hosts: k8s_cluster
@@ -42,3 +45,10 @@
   roles:
     - role: control_plane_tools
   tags: [kubeadm]
+
+- name: Install the Prometheus Operator CRDs
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - role: prometheus_operator_crds
+  tags: [crds]

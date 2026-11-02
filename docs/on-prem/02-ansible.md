@@ -206,7 +206,7 @@ sudo crictl info | jq '.status.conditions[] | {type, status}'
 ```
 
 `crictl info` reports `RuntimeReady: true` and `NetworkReady: false` — there is no pod network
-until Cilium is installed.
+until Cilium is installed. Next: [03 — Kubernetes](03-kubernetes.md).
 
 ---
 
