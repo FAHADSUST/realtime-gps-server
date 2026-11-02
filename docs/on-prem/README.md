@@ -136,6 +136,10 @@ Pinned everywhere, verified against upstream when this platform was built (Novem
 | Grafana | 13.3.0 (grafana-community chart 14.3.0) | |
 | Loki | 3.7.9 (grafana-community chart 20.2.1) | |
 | Alloy | 1.21.3 (chart 1.15.0) | Log collector |
+| Container registry | CNCF Distribution 3.1.2 | Holds the GPS images inside the cluster |
+| Kong | 3.9.4 | Last open-source line — see risks |
+| MySQL / Redis / RabbitMQ | 8.4.13 / 7.4.12 / 4.4.0 | The application's data stores |
+| Spring Boot / Spring Cloud | 3.5.16 / 2025.0.3 | The services |
 | Helm (on nodes) | 4.3.1 | kubernetes.core 6.x supports Helm 4 |
 | Terraform / bpg/proxmox | ≥ 1.9 (tested 1.17.1) / 0.119.0 | |
 | ansible-core / kubernetes.core | ≥ 2.18 / 6.6.0 | |

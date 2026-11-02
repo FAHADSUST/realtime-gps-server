@@ -142,7 +142,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P10 | Prometheus | ✅ done² ([guide](docs/on-prem/08-observability.md)) |
 | P11 | Grafana | ✅ done² ([guide](docs/on-prem/08-observability.md#grafana)) |
 | P12 | Loki + Alloy | ✅ done² ([guide](docs/on-prem/08-observability.md#loki-and-alloy)) |
-| P13 | The application on Kubernetes | ⬜ planned |
+| P13 | The application on Kubernetes | ✅ done² ([guide](docs/on-prem/09-application.md)) |
 | P14 | Validation and operations runbook | ⬜ planned |
 
 ² Ansible cannot run on the Windows workstation this is developed on, so the playbooks have not
@@ -1592,6 +1592,20 @@ cluster, namespace, pod, container, app and node. Grafana gains Loki as a data s
 pipeline passes `alloy validate` from Alloy v1.21.3, and all 156 objects the four observability
 applications render are schema-valid. Guide:
 [08 — Observability](docs/on-prem/08-observability.md#loki-and-alloy).
+
+### P13 — The application on Kubernetes (P13.1 – P13.6)
+
+The services move to Spring Boot 3.5.16 and MySQL 8.4 LTS, and finally serve the Prometheus
+endpoint they listed (90 unit tests pass; the Docker-based integration tests skip here). Kong gets a
+production image with `kong.yml` and `rls_auth` baked in and an entrypoint that swaps in the real
+gateway token. Argo CD deploys the cluster's own image registry (CNCF Distribution 3.1.2,
+`registry.rls.internal`), and `scripts/publish-images.sh` builds and pushes every image of a release.
+The `gps` chart runs the three services and Kong — two replicas each, non-root on read-only
+filesystems, probed, without Consul — beside MySQL, Redis and RabbitMQ on Longhorn, with every
+credential coming from the vault. A default-deny network policy admits only the connections the
+system makes, Kong sees real client addresses, and ServiceMonitors, four `promtool`-checked alert
+rules and a Grafana dashboard come with it. Releasing is a Git change: set the image tag and merge.
+Guide: [09 — Application](docs/on-prem/09-application.md).
 
 <!-- next-commit-log-entry -->
 
