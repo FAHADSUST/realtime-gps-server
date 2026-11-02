@@ -29,3 +29,24 @@ deploy/data/
 .env
 .env.local
 *.local.yml
+
+# Terraform: state holds real addresses and tokens; only examples are committed.
+# The provider lock file IS committed, so every run uses the same provider build.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+*.tfvars
+!*.tfvars.example
+
+# Ansible: the generated inventory, the encrypted vault and its password stay local.
+infra/ansible/inventory/hosts.yml
+infra/ansible/inventory/group_vars/all/vault.yml
+.vault-pass*
+*.retry
+
+# Cluster credentials
+kubeconfig
+*.kubeconfig
+admin.conf

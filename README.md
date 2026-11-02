@@ -56,11 +56,14 @@ integration tests (failsafe, `mvn verify`). Coverage reports land in `target/sit
 ```
 realtime-gps/
 ├── pom.xml                  # parent POM: Java 21, Spring Boot/Cloud BOMs, surefire/failsafe/jacoco
-├── libs/gps-common/         # shared library every service depends on
-├── services/id-service/     # authentication and authorization
+├── libs/gps-common/         # shared web, security and error plumbing for every service
+├── libs/gps-messaging/      # the location queue contract shared by publisher and consumer
+├── services/                # id-service, ping-service, history-service
+├── gateway/kong/            # Kong declarative config, the rls_auth plugin, config tests
 ├── deploy/                  # docker-compose stack, MySQL init SQL, Consul KV seed files
-├── scripts/                 # build.sh (JDK 21), up.sh / down.sh / seed.sh (local stack)
-└── docs/images/             # architecture diagram from the original spec
+├── infra/                   # on-prem: Terraform (Proxmox VMs) and Ansible (cluster + platform)
+├── scripts/                 # build.sh (JDK 21), local stack and smoke-test scripts
+└── docs/                    # on-prem platform guides, architecture diagram
 ```
 
 ---
@@ -121,6 +124,26 @@ machine (its WSL disk image is missing). Compose definitions are validated with 
 and shell scripts are syntax-checked; Testcontainers integration tests are written and compile, but
 report as *skipped* rather than passing. They run for real as soon as Docker works.
 
+### Platform track — on-premises
+
+| # | Milestone | Status |
+|---|---|---|
+| P0 | Architecture, network plan, version matrix | ✅ done |
+| P1 | Terraform — Proxmox VMs and inventory | ⬜ planned |
+| P2 | Ansible — node baseline, containerd, Kubernetes packages | ⬜ planned |
+| P3 | kubeadm — HA control plane with kube-vip | ⬜ planned |
+| P4 | Cilium — CNI, kube-proxy replacement, Hubble | ⬜ planned |
+| P5 | MetalLB — L2 address pool | ⬜ planned |
+| P6 | Longhorn — replicated storage | ⬜ planned |
+| P7 | Ingress-NGINX | ⬜ planned |
+| P8 | cert-manager — internal CA | ⬜ planned |
+| P9 | Argo CD — GitOps app-of-apps | ⬜ planned |
+| P10 | Prometheus | ⬜ planned |
+| P11 | Grafana | ⬜ planned |
+| P12 | Loki + Alloy | ⬜ planned |
+| P13 | The application on Kubernetes | ⬜ planned |
+| P14 | Validation and operations runbook | ⬜ planned |
+
 ---
 
 ## Running the local stack
@@ -137,6 +160,15 @@ Requires **Docker Desktop running**.
 
 `up.sh` starts every container, waits for its health check, and re-seeds Consul KV. `down.sh -v`
 also discards the MySQL/Redis/RabbitMQ data volumes for a clean slate.
+
+---
+
+## Running on-premises
+
+Docker Compose is for development. Production runs on a Kubernetes cluster you own, built by the
+pipeline Terraform → Ansible → kubeadm → Cilium → MetalLB → Longhorn → Ingress-NGINX → cert-manager
+→ Argo CD → Prometheus → Grafana → Loki. Architecture, network plan, versions and step-by-step
+guides: **[docs/on-prem](docs/on-prem/README.md)**.
 
 ---
 
@@ -1410,6 +1442,14 @@ This completes the History service's write path.
 *Verify:* `./scripts/build.sh -pl services/history-service -am verify` → `FixValidationTest` (7, no
 Docker) and `PoisonMessageIT` (4), including an unreadable message reaching the DLQ and the queue
 still working afterwards.
+
+### P0 — On-prem platform design
+
+[docs/on-prem](docs/on-prem/README.md) fixes the target before any infrastructure code: the
+pipeline, which layer Ansible owns and which Argo CD owns, the network plan, a version matrix
+checked against upstream, and the decisions behind it. Notable findings while pinning versions:
+Ingress-NGINX was archived in March 2026, Promtail is end-of-life, Grafana's OSS charts moved to
+`grafana-community`, and Kubernetes 1.36 is the newest release Cilium 1.20 supports.
 
 <!-- next-commit-log-entry -->
 
