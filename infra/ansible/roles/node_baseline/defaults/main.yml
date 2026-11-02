@@ -1,0 +1,27 @@
+---
+node_baseline_packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gpg
+  # Expected by kubeadm's preflight checks and by the kubelet.
+  - conntrack
+  - socat
+  - ethtool
+  - iptables
+  # Handy when debugging a node; small enough to always have.
+  - jq
+  - tcpdump
+
+# NTP servers for systemd-timesyncd. Empty keeps the distribution default. Certificates and etcd
+# both misbehave on clocks that drift, so point this at your own time source if you have one.
+node_baseline_ntp_servers: []
+
+# Kernel tunables for a Kubernetes node.
+node_baseline_sysctls:
+  net.ipv4.ip_forward: 1
+  net.bridge.bridge-nf-call-iptables: 1
+  net.bridge.bridge-nf-call-ip6tables: 1
+  # Log shippers and the kubelet watch thousands of files; the defaults run out.
+  fs.inotify.max_user_watches: 524288
+  fs.inotify.max_user_instances: 512

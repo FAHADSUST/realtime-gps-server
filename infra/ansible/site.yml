@@ -1,0 +1,12 @@
+---
+# The whole pipeline, in order. Every play is tagged so one layer can be re-run on its own:
+#
+#   ansible-playbook site.yml                 # everything
+#   ansible-playbook site.yml --tags nodes    # just node preparation
+
+- name: Prepare every node
+  hosts: k8s_cluster
+  become: true
+  roles:
+    - role: node_baseline
+  tags: [nodes]
