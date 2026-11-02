@@ -176,7 +176,10 @@ also discards the MySQL/Redis/RabbitMQ data volumes for a clean slate.
 Docker Compose is for development. Production runs on a Kubernetes cluster you own, built by the
 pipeline Terraform → Ansible → kubeadm → Cilium → MetalLB → Longhorn → Ingress-NGINX → cert-manager
 → Argo CD → Prometheus → Grafana → Loki. Architecture, network plan, versions and step-by-step
-guides: **[docs/on-prem](docs/on-prem/README.md)**.
+guides: **[docs/on-prem](docs/on-prem/README.md)**. New to the platform, or presenting it? **[The
+platform, explained](docs/platform-explained/README.md)** tells the same story with diagrams: each
+tool and why it was chosen, end-to-end flows, failure scenarios, a 15-minute talk and interview
+questions.
 
 From bare Proxmox to the API answering at `https://api.rls.internal`:
 
@@ -1638,6 +1641,17 @@ snapshots etcd every night, and `upgrade.yml` performs Kubernetes upgrades the k
 node. [10 — Operations](docs/on-prem/10-operations.md) is the runbook: routine work, upgrades of
 every component, what to back up, and step-by-step recovery from a lost worker, a lost control
 plane, lost quorum, a damaged volume, a lost cluster and expired certificates.
+
+### The platform, explained
+
+[docs/platform-explained](docs/platform-explained/README.md) tells the platform's story for anyone
+learning it or presenting it, diagrams first: the big picture and who installs what; each of the
+twelve tools with an everyday comparison, what it does here and why it was chosen; end-to-end flows
+as sequence diagrams — building the platform, a node joining, a location ping from DNS to MySQL, a
+radius query, sign-up, a release, a certificate, metrics and logs, a secret; security in layers;
+failure scenarios, backups and upgrades; how the code is validated; a 15-minute talk with speaker
+notes; 77 interview questions with answers; and a glossary. All 62 Mermaid diagrams parse and render
+with Mermaid 10 and 11.
 
 <!-- next-commit-log-entry -->
 

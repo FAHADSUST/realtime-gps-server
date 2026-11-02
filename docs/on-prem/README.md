@@ -7,6 +7,11 @@ GitOps and observability services the application needs.
 Everything here is code. A cluster is rebuilt by running three commands, and every change after
 that is a reviewed commit.
 
+> [!TIP]
+> These guides are for building and running the platform. To understand it or present it, start
+> with [The platform, explained](../platform-explained/README.md): the same system in diagrams and
+> plain words.
+
 | Guide | Covers |
 |---|---|
 | [01 — Terraform](01-terraform.md) | Proxmox VMs, the Ubuntu template, the generated Ansible inventory |
