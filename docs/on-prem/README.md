@@ -95,7 +95,7 @@ three replicas of every volume on three different machines.
 | `10.10.0.21–23` | Worker nodes |
 | `10.10.0.200–230` | MetalLB pool for `LoadBalancer` services |
 | `10.10.0.200` | Ingress-NGINX (fixed) |
-| `10.244.0.0/16` | Pod CIDR (Cilium cluster-pool IPAM) |
+| `10.244.0.0/16` | Pod CIDR (kubeadm `podSubnet`; Cilium IPAM mode `kubernetes`) |
 | `10.96.0.0/12` | Service CIDR |
 
 ### DNS records
