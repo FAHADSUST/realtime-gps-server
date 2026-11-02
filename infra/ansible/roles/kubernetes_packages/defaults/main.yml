@@ -1,0 +1,8 @@
+---
+# pkgs.k8s.io publishes one repository per Kubernetes minor version.
+kubernetes_packages_minor: "{{ kubernetes_version.split('.')[0:2] | join('.') }}"
+kubernetes_packages_repo_url: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_packages_minor }}/deb/"
+
+# A re-run never moves an existing node to another Kubernetes version: kubelet must not get ahead
+# of the API server. Set this to true only while performing a kubeadm upgrade.
+kubernetes_packages_allow_version_change: false

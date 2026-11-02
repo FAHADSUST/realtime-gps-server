@@ -10,4 +10,5 @@
   roles:
     - role: node_baseline
     - role: containerd
+    - role: kubernetes_packages
   tags: [nodes]

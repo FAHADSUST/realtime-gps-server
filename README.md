@@ -130,7 +130,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 |---|---|---|
 | P0 | Architecture, network plan, version matrix | ✅ done |
 | P1 | Terraform — Proxmox VMs and inventory | ✅ done ([guide](docs/on-prem/01-terraform.md)) |
-| P2 | Ansible — node baseline, containerd, Kubernetes packages | ⬜ planned |
+| P2 | Ansible — node baseline, containerd, Kubernetes packages | ✅ done² ([guide](docs/on-prem/02-ansible.md)) |
 | P3 | kubeadm — HA control plane with kube-vip | ⬜ planned |
 | P4 | Cilium — CNI, kube-proxy replacement, Hubble | ⬜ planned |
 | P5 | MetalLB — L2 address pool | ⬜ planned |
@@ -143,6 +143,10 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P12 | Loki + Alloy | ⬜ planned |
 | P13 | The application on Kubernetes | ⬜ planned |
 | P14 | Validation and operations runbook | ⬜ planned |
+
+² Ansible cannot run on the Windows workstation this is developed on, so the playbooks have not
+been executed against nodes yet. They are checked with yamllint and by rendering every template and
+parsing the result; P14 adds ansible-lint and a syntax check on Linux CI.
 
 ---
 
@@ -1459,6 +1463,17 @@ addresses and a Longhorn disk per worker; Terraform owns every address on the no
 VIP or ingress IP colliding with a node fails the plan. Terraform may not reboot a node on its own.
 Validated against the real `bpg/proxmox` 0.119 schema, with plans exercised against the example and
 broken inputs. Guide: [01 — Terraform](docs/on-prem/01-terraform.md).
+
+### P2 — Ansible: node preparation (P2.1 – P2.5)
+
+`infra/ansible` prepares every node for kubeadm in one tagged play (`site.yml --tags nodes`): swap
+off, kernel modules and sysctls, time sync, then containerd 2.4.2 and runc 1.5.2 from their
+upstream releases — each download verified against a SHA-256 sum pinned next to its version — and
+kubelet, kubeadm and kubectl 1.36.6 from pkgs.k8s.io, held at that version. A guard refuses to move
+an existing node to another Kubernetes version outside a kubeadm upgrade, because a kubelet must
+never get ahead of its API server. Registry mirrors and overridable download locations let nodes
+without internet access install everything from inside the network. Every version lives in
+`group_vars/all/versions.yml`. Guide: [02 — Ansible](docs/on-prem/02-ansible.md).
 
 <!-- next-commit-log-entry -->
 

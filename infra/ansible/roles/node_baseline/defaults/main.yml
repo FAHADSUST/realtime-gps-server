@@ -1,16 +1,15 @@
 ---
 node_baseline_packages:
-  - apt-transport-https
   - ca-certificates
   - curl
   - gpg
-  # Expected by kubeadm's preflight checks and by the kubelet.
+  # Not needed by kubeadm 1.36, whose preflight checks only look for losetup, mount and cp (all in
+  # the base image), but the first tools anyone reaches for when debugging a node or the pod network.
   - conntrack
-  - socat
   - ethtool
   - iptables
-  # Handy when debugging a node; small enough to always have.
   - jq
+  - socat
   - tcpdump
 
 # NTP servers for systemd-timesyncd. Empty keeps the distribution default. Certificates and etcd
