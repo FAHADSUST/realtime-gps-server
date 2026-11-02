@@ -1,0 +1,70 @@
+# Helm values for Cilium {{ cilium_chart_version }} (role: cilium).
+
+# --- Datapath -------------------------------------------------------------------------------
+# No kube-proxy in this cluster: Cilium implements Services in eBPF. Without kube-proxy there is
+# no ClusterIP to find the API server through, so the agents use the VIP directly.
+kubeProxyReplacement: true
+k8sServiceHost: "{{ kubernetes_api_vip }}"
+k8sServicePort: {{ kubernetes_api_port }}
+
+# Pod addresses come from the per-node ranges kube-controller-manager carves out of pod_cidr, so
+# kubeadm's podSubnet stays the single source of truth.
+ipam:
+  mode: kubernetes
+k8s:
+  requireIPv4PodCIDR: true
+
+routingMode: {{ cilium_routing_mode }}
+{% if cilium_routing_mode == 'native' %}
+autoDirectNodeRoutes: true
+ipv4NativeRoutingCIDR: "{{ pod_cidr }}"
+{% endif %}
+bpf:
+  masquerade: true
+
+# LoadBalancer addresses belong to MetalLB. Cilium's own LB IPAM would otherwise answer for every
+# LoadBalancer Service without a class.
+defaultLBServiceIPAM: none
+
+# Restart the agents when this configuration changes, so a change actually takes effect.
+rollOutCiliumPods: true
+
+operator:
+  replicas: 2
+  prometheus:
+    serviceMonitor:
+      enabled: true
+  dashboards:
+    enabled: true
+
+# --- Observability ----------------------------------------------------------------------------
+# ServiceMonitors for Prometheus and dashboards as ConfigMaps (label grafana_dashboard) for
+# Grafana: both are picked up once the monitoring stack is deployed.
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+dashboards:
+  enabled: true
+envoy:
+  prometheus:
+    serviceMonitor:
+      enabled: true
+
+hubble:
+  enabled: true
+  metrics:
+    enableOpenMetrics: true
+    enabled: {{ cilium_hubble_metrics | to_json }}
+    serviceMonitor:
+      enabled: true
+    dashboards:
+      enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+  tls:
+    auto:
+      # A CronJob re-issues Hubble's internal certificates before they expire.
+      method: cronJob

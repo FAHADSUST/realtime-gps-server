@@ -26,6 +26,7 @@ helm_version: v4.3.1
 # Helm charts installed by Ansible.
 # Prometheus Operator v0.94.2: must stay on the operator version of kube-prometheus-stack (92.17.0).
 prometheus_operator_crds_chart_version: 32.0.2
+# Cilium 1.20 is tested on Kubernetes 1.33 - 1.36: check its matrix before moving Kubernetes on.
 cilium_chart_version: 1.20.4
 metallb_chart_version: 0.16.1
 longhorn_chart_version: 1.13.0

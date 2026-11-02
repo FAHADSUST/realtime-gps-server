@@ -1,9 +1,9 @@
-# 03 — Kubernetes: kubeadm and kube-vip
+# 03 — Kubernetes: kubeadm, kube-vip and Cilium
 
 kubeadm turns the prepared nodes into a highly available Kubernetes cluster: three control planes
-with stacked etcd, reached through a virtual IP that kube-vip moves between them. Code: the roles
-below in [`infra/ansible/roles`](../../infra/ansible/roles), run by
-[`site.yml`](../../infra/ansible/site.yml).
+with stacked etcd, reached through a virtual IP that kube-vip moves between them. Cilium gives it a
+pod network and replaces kube-proxy. Code: the roles below in
+[`infra/ansible/roles`](../../infra/ansible/roles), run by [`site.yml`](../../infra/ansible/site.yml).
 
 | Role | Runs on | Does |
 |---|---|---|
@@ -12,6 +12,7 @@ below in [`infra/ansible/roles`](../../infra/ansible/roles), run by
 | `kubeadm_join` | other control planes, then workers | Short-lived join credentials, `kubeadm join`, worker labels |
 | `control_plane_tools` | control planes | `kubectl` access for the admin user, Helm, shell completion |
 | `prometheus_operator_crds` | first control plane | The `monitoring.coreos.com` CRDs every later layer uses for its metrics |
+| `cilium` | first control plane | Cilium and Hubble, installed with Helm; waits until every node is Ready |
 
 ---
 
@@ -44,7 +45,7 @@ which cannot do this job: it runs inside the cluster, so it cannot exist before 
 
 ```bash
 cd infra/ansible
-ansible-playbook site.yml --tags kubeadm,crds
+ansible-playbook site.yml --tags kubeadm,crds,cilium
 ```
 
 1. **First control plane.** Writes and validates `/etc/kubernetes/kubeadm-config.yaml`, starts
@@ -58,6 +59,8 @@ ansible-playbook site.yml --tags kubeadm,crds
    `helm`.
 5. **CRDs.** The Prometheus Operator CRDs, so every chart from here on can ship its
    `ServiceMonitor` from the start.
+6. **Cilium.** Installed with Helm on the first control plane; the play then waits until every node
+   is Ready and CoreDNS is running.
 
 Every step checks first whether it is needed, so re-running is safe: an initialised cluster is not
 initialised again, and nodes that have already joined get no new credentials.
@@ -92,11 +95,33 @@ ConfigMap, and changing it is a kubeadm reconfiguration rather than a re-run.
 The playbook runs `kubeadm config validate` on the rendered file before `kubeadm init`, so a typo
 or an invalid value fails the run before anything changes on the node.
 
-**Images and downloads.** This layer pulls the control plane images from `registry.k8s.io` and
-kube-vip from `ghcr.io`, downloads Helm from `get.helm.sh` and the CRD chart from
-`prometheus-community.github.io`. Without internet access: mirror the registries with
-`containerd_registry_mirrors` and set `control_plane_tools_helm_download_base_url` and
-`prometheus_operator_crds_chart_repo` (see [02 — Ansible](02-ansible.md#mirrors-and-networks-without-internet-access)).
+---
+
+## Cilium: the pod network
+
+Cilium is the CNI, implements Services in eBPF in place of kube-proxy, enforces network policies,
+and records every flow in Hubble. Values: `roles/cilium/templates/values.yaml.j2`.
+
+| Setting | Value | Why |
+|---|---|---|
+| kube-proxy replacement | on; API reached at the VIP | No kube-proxy means no ClusterIP for the API server until Cilium runs, so the agents use the VIP |
+| IPAM | `kubernetes` | Pods get addresses from each node's range of `pod_cidr`, assigned by kube-controller-manager: one source of truth |
+| Routing | `native`, with routes between nodes | No encapsulation: lower overhead, full MTU. Requires the nodes to share an L2 segment, which the Terraform address plan guarantees. Set `cilium_routing_mode: tunnel` (VXLAN) for nodes in routed subnets — decide before production, switching later briefly interrupts pod traffic |
+| Masquerading | eBPF | Pod traffic leaving the cluster takes the node's address, without iptables rules |
+| LoadBalancer IPAM | off (`defaultLBServiceIPAM: none`) | MetalLB owns LoadBalancer addresses; Cilium's own LB IPAM would otherwise compete for them |
+| Config changes | `rollOutCiliumPods` | The agents restart when their configuration changes, so a change actually applies |
+| Metrics | agent, operator, Envoy and Hubble `ServiceMonitor`s; Grafana dashboards as ConfigMaps | Picked up automatically once Prometheus and Grafana are deployed |
+| Hubble | relay and UI; certificates rotated by a CronJob | Flow visibility for debugging and network policy work |
+
+The values are validated against the chart's own schema by `helm template`, and the rendered
+manifests with kubeconform.
+
+**Images and downloads.** These layers pull the control plane images from `registry.k8s.io`,
+kube-vip from `ghcr.io` and Cilium from `quay.io`, download Helm from `get.helm.sh`, and fetch charts
+from `prometheus-community.github.io` and `helm.cilium.io`. Without internet access: mirror the
+registries with `containerd_registry_mirrors` and set `control_plane_tools_helm_download_base_url`,
+`prometheus_operator_crds_chart_repo` and `cilium_chart_repo` (see
+[02 — Ansible](02-ansible.md#mirrors-and-networks-without-internet-access)).
 
 ---
 
@@ -112,10 +137,23 @@ kubectl get crd | grep monitoring.coreos.com
 sudo kubeadm certs check-expiration
 ```
 
-All six nodes are listed but **NotReady**, and the CoreDNS pods are Pending: there is no pod network
-until Cilium is installed. The control plane pods, including one `kube-vip-<node>` per control plane,
-are Running. The lease holder is the node that currently owns the VIP; on that node,
-`ip -brief address` shows `10.10.0.10/32` next to its own address.
+All six nodes are **Ready**. In `kube-system`, the control plane pods (including one
+`kube-vip-<node>` per control plane), CoreDNS, a `cilium` and a `cilium-envoy` pod per node, the
+Cilium operator and Hubble are Running. The lease holder is the node that currently owns the VIP; on
+that node, `ip -brief address` shows `10.10.0.10/32` next to its own address.
+
+Cilium's own view, from any agent:
+
+```bash
+kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief    # OK
+kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status | grep KubeProxyReplacement
+kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe --last 20
+kubectl -n kube-system port-forward svc/hubble-ui 12000:80                             # http://localhost:12000
+```
+
+For a thorough check, run `cilium connectivity test` from a workstation with the
+[Cilium CLI](https://github.com/cilium/cilium-cli) and this cluster's kubeconfig; it deploys test
+workloads into `cilium-test-*` namespaces, which you delete afterwards.
 
 **Failover test.** On the lease holder, stop kube-vip by moving its manifest away:
 
@@ -158,4 +196,5 @@ That file holds cluster-admin credentials; keep it like a root password.
 | A failed `kubeadm init` is not retried | `admin.conf` already exists from the half-finished run. `sudo kubeadm reset -f` on the first control plane, then re-run |
 | A control plane join fails to download certificates | The uploaded certificates expired. Re-run: every run uploads them again for nodes that still need them |
 | `a Node with name … already exists` | The node was rebuilt. `kubectl delete node <name>`, then re-run |
-| Nodes stay `NotReady` | Expected until Cilium is installed |
+| Nodes stay `NotReady` | Expected until Cilium is installed. Afterwards: `kubectl -n kube-system logs ds/cilium -c cilium-agent`. Typical causes are an agent that cannot reach the VIP, or a node without a pod CIDR (`kubectl get node <name> -o jsonpath='{.spec.podCIDR}'`) |
+| Pods on different nodes cannot reach each other | With native routing the network between nodes must forward pod addresses. A firewall filtering by IP on the hypervisor bridge drops them: allow `pod_cidr`, or switch to `cilium_routing_mode: tunnel` |

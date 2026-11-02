@@ -5,7 +5,7 @@
 #   ansible-playbook site.yml --tags kubeadm    # one layer
 #   ansible-playbook site.yml --limit wk-04     # bring a new node in
 #
-# Tags in pipeline order: nodes, kubeadm, crds.
+# Tags in pipeline order: nodes, kubeadm, crds, cilium.
 
 - name: Prepare every node
   hosts: k8s_cluster
@@ -52,3 +52,10 @@
   roles:
     - role: prometheus_operator_crds
   tags: [crds]
+
+- name: Install the pod network
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - role: cilium
+  tags: [cilium]

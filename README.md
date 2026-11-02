@@ -132,7 +132,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P1 | Terraform — Proxmox VMs and inventory | ✅ done ([guide](docs/on-prem/01-terraform.md)) |
 | P2 | Ansible — node baseline, containerd, Kubernetes packages | ✅ done² ([guide](docs/on-prem/02-ansible.md)) |
 | P3 | kubeadm — HA control plane with kube-vip | ✅ done² ([guide](docs/on-prem/03-kubernetes.md)) |
-| P4 | Cilium — CNI, kube-proxy replacement, Hubble | ⬜ planned |
+| P4 | Cilium — CNI, kube-proxy replacement, Hubble | ✅ done² ([guide](docs/on-prem/03-kubernetes.md#cilium-the-pod-network)) |
 | P5 | MetalLB — L2 address pool | ⬜ planned |
 | P6 | Longhorn — replicated storage | ⬜ planned |
 | P7 | Ingress-NGINX | ⬜ planned |
@@ -1487,6 +1487,17 @@ upgrades. Join credentials are created per node, live for minutes and are delete
 control planes get kubectl access and Helm 4.3.1, and the Prometheus Operator CRDs are installed so
 every later layer can ship its monitoring objects. Guide:
 [03 — Kubernetes](docs/on-prem/03-kubernetes.md).
+
+### P4 — Cilium: pod network without kube-proxy
+
+`site.yml --tags cilium` installs Cilium 1.20.4 with Helm and waits for every node to turn Ready.
+Cilium implements Services in eBPF instead of kube-proxy and reaches the API through the VIP; pod
+addresses come from kubeadm's pod network, routed natively between nodes (VXLAN is one variable
+away for routed networks). Its LoadBalancer IPAM is switched off so MetalLB alone hands out service
+addresses. Hubble records flows; agent, operator, Envoy and Hubble metrics ship as ServiceMonitors,
+with Grafana dashboards alongside. The values pass the chart's schema in `helm template`, and all 51
+rendered objects pass kubeconform. Guide:
+[03 — Kubernetes](docs/on-prem/03-kubernetes.md#cilium-the-pod-network).
 
 <!-- next-commit-log-entry -->
 
