@@ -12,3 +12,10 @@
     - role: containerd
     - role: kubernetes_packages
   tags: [nodes]
+
+- name: Initialise the cluster on the first control plane
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - role: kubeadm_init
+  tags: [kubeadm]

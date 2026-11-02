@@ -1,0 +1,16 @@
+---
+kube_vip_image: "ghcr.io/kube-vip/kube-vip:{{ kube_vip_version }}"
+
+# Interface that carries node_ip; the VIP is announced on it over ARP. The default-route interface
+# is right for single-NIC nodes. Set it when the node network is on another interface.
+kube_vip_interface: "{{ ansible_facts['default_ipv4']['interface'] | default('') }}"
+
+# Kubeconfig kube-vip uses for leader election. The first control plane briefly runs with
+# super-admin.conf while kubeadm init is still authorising admin.conf (see roles/kubeadm_init).
+kube_vip_kubeconfig: /etc/kubernetes/admin.conf
+
+# Leader election, in seconds (kube-vip's defaults). If the leader dies, another control plane
+# takes the VIP over within roughly lease duration + retry period.
+kube_vip_lease_duration: 15
+kube_vip_renew_deadline: 10
+kube_vip_retry_period: 2

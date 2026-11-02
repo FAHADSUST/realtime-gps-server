@@ -1,0 +1,4 @@
+---
+# Extra names or addresses for the API server certificate. The VIP and kubernetes_api_hostname are
+# always included, and kubeadm adds node names and addresses, kubernetes.default and the service IP.
+kubeadm_init_extra_cert_sans: []
