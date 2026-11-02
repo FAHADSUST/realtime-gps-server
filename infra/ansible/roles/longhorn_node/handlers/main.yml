@@ -1,0 +1,8 @@
+---
+# Only a running multipathd needs to re-read its configuration. Ubuntu cloud images may not ship
+# it at all, and a stopped one must stay stopped (a reload would start it).
+- name: Reload multipathd
+  ansible.builtin.systemd_service:
+    name: multipathd
+    state: reloaded
+  when: ansible_facts['services'].get('multipathd.service', {}).get('state') == 'running'

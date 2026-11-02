@@ -1,0 +1,109 @@
+---
+- name: Install what Longhorn needs on a node
+  ansible.builtin.apt:
+    name:
+      # Volumes attach to the node as iSCSI devices.
+      - open-iscsi
+      # ReadWriteMany volumes are served over NFS, and backups can go to NFS.
+      - nfs-common
+      # Encrypted volumes.
+      - cryptsetup
+      - dmsetup
+    state: present
+
+- name: Load Longhorn's kernel modules at boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/longhorn.conf
+    content: |
+      iscsi_tcp
+      dm_crypt
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Load Longhorn's kernel modules now
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - iscsi_tcp
+    - dm_crypt
+
+- name: Run the iSCSI daemon
+  ansible.builtin.systemd_service:
+    name: iscsid
+    enabled: true
+    state: started
+
+# multipathd claims every SCSI disk it sees, including the iSCSI devices behind Longhorn volumes,
+# and mounting the volume then fails with "already mounted or mount point busy". Nothing on these
+# nodes uses multipath.
+- name: Read the services on the node
+  ansible.builtin.service_facts:
+
+- name: Create the multipath drop-in directory
+  ansible.builtin.file:
+    path: /etc/multipath/conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Keep multipathd away from SCSI disks
+  ansible.builtin.copy:
+    dest: /etc/multipath/conf.d/longhorn.conf
+    content: |
+      blacklist {
+          devnode "^sd[a-z0-9]+"
+      }
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload multipathd
+
+- name: Prepare the Longhorn data disk
+  when: longhorn_disk is defined
+  block:
+    - name: Inspect the data disk
+      ansible.builtin.command:
+        argv: [lsblk, --json, --output, "NAME,TYPE,FSTYPE,PTTYPE,MOUNTPOINTS", "{{ longhorn_disk }}"]
+      register: longhorn_node_lsblk
+      changed_when: false
+      check_mode: false
+
+    # Formatting cannot be undone. Only a whole, unpartitioned disk that is empty - or already has
+    # this role's ext4 - is accepted; anything else, such as the OS disk named by mistake, stops
+    # the run before it is touched.
+    - name: Check that the data disk is safe to format
+      ansible.builtin.assert:
+        that:
+          - longhorn_node_disk.type == 'disk'
+          - longhorn_node_disk.children is not defined
+          - longhorn_node_disk.pttype is none
+          - longhorn_node_disk.fstype in [none, 'ext4']
+          - longhorn_node_disk.mountpoints | reject('none') | reject('equalto', longhorn_data_path) | list | length == 0
+        fail_msg: >-
+          {{ longhorn_disk }} on {{ inventory_hostname }} is not an empty, unpartitioned disk (found
+          type={{ longhorn_node_disk.type }}, partition table={{ longhorn_node_disk.pttype }},
+          filesystem={{ longhorn_node_disk.fstype }}, partitions={{ longhorn_node_disk.children is defined }}).
+          Nothing was changed. Point longhorn_disk at the right device, or wipe it yourself.
+        quiet: true
+      vars:
+        longhorn_node_disk: "{{ (longhorn_node_lsblk.stdout | from_json)['blockdevices'][0] }}"
+
+    - name: Create the filesystem
+      community.general.filesystem:
+        dev: "{{ longhorn_disk }}"
+        fstype: ext4
+        # No blocks reserved for root: the disk holds nothing but Longhorn replicas.
+        opts: -L longhorn -m 0
+
+    # nofail: a node whose data disk is missing still boots and stays manageable. Longhorn notices
+    # the disk is not its own (it checks a UUID file) and stops scheduling replicas to it.
+    - name: Mount the data disk for Longhorn
+      ansible.posix.mount:
+        src: "{{ longhorn_disk }}"
+        path: "{{ longhorn_data_path }}"
+        fstype: ext4
+        opts: defaults,nofail
+        state: mounted

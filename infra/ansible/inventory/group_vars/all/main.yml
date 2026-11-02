@@ -22,5 +22,9 @@ first_control_plane: "{{ groups['control_plane'] | first }}"
 
 kubeconfig_path: /etc/kubernetes/admin.conf
 
+# Where Longhorn keeps replica data on every worker; each worker's data disk (the inventory's
+# longhorn_disk) is mounted here.
+longhorn_data_path: /var/lib/longhorn
+
 # CPU architecture in the form release artefacts use (amd64, arm64).
 node_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] }}"
