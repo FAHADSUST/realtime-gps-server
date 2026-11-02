@@ -108,7 +108,8 @@ them later is an `ALTER USER` in MySQL as well.
   Ingress-NGINX runs, so the per-IP limit on `/api/v1/auth/token` applies to each client rather
   than to the ingress controller.
 - **Containers.** The services run as a non-root user on a read-only root filesystem, without
-  capabilities or privilege escalation; Kong does the same without the read-only filesystem.
+  capabilities or privilege escalation. Kong runs without capabilities or privilege escalation as
+  its image's non-root `kong` user — not enforced with `runAsNonRoot` — on a writable filesystem.
 
 ---
 

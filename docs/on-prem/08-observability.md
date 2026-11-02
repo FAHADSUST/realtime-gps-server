@@ -66,7 +66,8 @@ labels Prometheus with.
 nowhere: Alertmanager has no receivers yet. To send them to e-mail, Slack, Teams or a webhook, add
 an `alertmanager.config` block to the values file, with the credentials in a Secret written by
 Ansible from the vault and referenced by name — never in Git. The `Watchdog` alert fires
-permanently on purpose: it proves the alerting pipeline works end to end.
+permanently on purpose: today it shows rules are evaluated and reach Alertmanager; routed to a
+dead man's switch service once receivers exist, it proves the whole pipeline end to end.
 
 ---
 

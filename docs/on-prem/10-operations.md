@@ -20,7 +20,7 @@ request — and Ansible runs need `--ask-vault-pass`.
 
 | Task | When | How |
 |---|---|---|
-| Watch alerts | Continuously | Alertmanager and Grafana (see [08 — Observability](08-observability.md)). `Watchdog` always fires: it proves alerting works |
+| Watch alerts | Continuously | Alertmanager and Grafana; nothing sends them anywhere until a receiver is configured (see [08 — Observability](08-observability.md#prometheus-and-alertmanager)). `Watchdog` always fires: it shows rules reach Alertmanager |
 | Copy etcd snapshots off the cluster | Daily | From a backup host, e.g. `rsync -a --rsync-path='sudo rsync' ubuntu@10.10.0.11:/var/backups/etcd/ /srv/backup/rls/etcd/` |
 | Check Kubernetes certificates | Monthly | `sudo kubeadm certs check-expiration` on a control plane. Every upgrade renews them; otherwise see [Expired certificates](#expired-certificates) |
 | Free registry space | Monthly | `registry garbage-collect` (see [09 — Application](09-application.md#the-image-registry)) |

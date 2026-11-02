@@ -54,10 +54,12 @@ runs. `./scripts/validate-platform.sh` checks all of it without a cluster.
 
 ### Who installs what
 
-The line between Ansible and Argo CD is deliberate. **Ansible installs everything Argo CD needs in
-order to work** — a network, storage, an ingress and TLS — because a tool cannot deploy its own
-prerequisites. **Argo CD deploys everything that runs on top of the platform**: observability, the
-container registry and the application. After bootstrap, changing those is a git commit, not an
+The line between Ansible and Argo CD is deliberate. **Ansible installs the foundations** — the
+network, load-balancer addresses, storage, the ingress and TLS. Some need work on the nodes
+themselves (Longhorn's disks, trusting the CA); the rest are what Argo CD runs on and is reached
+through, and kept out of Argo CD, a bad sync can never break what it would need to repair it.
+**Argo CD deploys everything that runs on top of the platform**: observability, the container
+registry and the application. After bootstrap, changing those is a git commit, not an
 Ansible run.
 
 After bootstrap nothing is changed by hand in the cluster: platform layers change by re-running

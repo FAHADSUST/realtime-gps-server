@@ -14,8 +14,10 @@ the ingress address. Code: roles `metallb`, `ingress_nginx` and `kubectl_apply` 
 
 ## Addresses
 
-Everything lives on the node network and is set in one place, Terraform's `cluster_addresses`,
-which checks that nothing collides before writing the inventory:
+Everything lives on the node network and is set in one place, Terraform's `cluster_addresses`.
+Before writing the inventory it checks that no two nodes share an address and that the API VIP and
+the ingress address are neither a node's address nor the same one. Keeping the node addresses
+outside the MetalLB pool is up to you:
 
 | Address | Used for |
 |---|---|

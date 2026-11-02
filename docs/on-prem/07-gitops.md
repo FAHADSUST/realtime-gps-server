@@ -15,9 +15,10 @@ drift made by hand is undone. Code: role `argocd` in
 | Nodes, Kubernetes, Cilium, MetalLB, Longhorn, Ingress-NGINX, cert-manager, Argo CD itself | Prometheus, Alertmanager, Grafana, Loki, Alloy, the image registry, the GPS services |
 | Every Secret (from the vault) | Only references to those Secrets, by name |
 
-Argo CD cannot install what it runs on — the network, storage and certificates it needs — so those
-stay with Ansible. Everything above them moves to Git, where history, review and rollback come for
-free. No secret is ever committed: Ansible writes them into the cluster, and the manifests in Git
+Argo CD doesn't manage what it runs on and is reached through — the network, the ingress, the
+certificates — so a bad sync can never break what it would need to repair it; those stay with
+Ansible, along with Longhorn, whose disks Ansible prepares on the nodes anyway. Everything above
+them moves to Git, where history, review and rollback come for free. No secret is ever committed: Ansible writes them into the cluster, and the manifests in Git
 only name them.
 
 ---
