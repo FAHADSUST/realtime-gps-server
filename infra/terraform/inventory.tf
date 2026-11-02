@@ -4,10 +4,14 @@
 locals {
   inventory_hosts = {
     for role in ["control_plane", "worker"] : role => {
-      for name, node in module.node : name => {
-        ansible_host = node.ipv4_address
-        node_ip      = node.ipv4_address
-      } if node.role == role
+      for name, node in module.node : name => merge(
+        {
+          ansible_host = node.ipv4_address
+          node_ip      = node.ipv4_address
+        },
+        # Only nodes with a data disk get one; Ansible formats it for Longhorn.
+        node.data_disk_device == null ? {} : { longhorn_disk = node.data_disk_device },
+      ) if node.role == role
     }
   }
 

@@ -99,8 +99,11 @@ all:
     k8s_cluster:
       children:
         control_plane: { hosts: { cp-01: { ansible_host: 10.10.0.11 }, ... } }
-        workers:       { hosts: { wk-01: { ansible_host: 10.10.0.21 }, ... } }
+        workers:       { hosts: { wk-01: { ansible_host: 10.10.0.21, longhorn_disk: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1 }, ... } }
 ```
+
+`longhorn_disk` is how the worker's data disk appears inside the VM, by a path that does not change
+between boots. Ansible formats and mounts it for Longhorn.
 
 Hosts are emitted in name order, so the first control plane — the one kubeadm initialises — is
 always the same machine. Next: [02 — Ansible](02-ansible.md).

@@ -16,8 +16,10 @@ all:
             cp-01: {ansible_host: 10.10.0.11, node_ip: 10.10.0.11}
             cp-02: {ansible_host: 10.10.0.12, node_ip: 10.10.0.12}
             cp-03: {ansible_host: 10.10.0.13, node_ip: 10.10.0.13}
+        # longhorn_disk: an empty disk for Longhorn, by a stable path. Ansible formats it if it has
+        # no filesystem yet; leave it out to keep Longhorn's data on the root disk.
         workers:
           hosts:
-            wk-01: {ansible_host: 10.10.0.21, node_ip: 10.10.0.21}
-            wk-02: {ansible_host: 10.10.0.22, node_ip: 10.10.0.22}
-            wk-03: {ansible_host: 10.10.0.23, node_ip: 10.10.0.23}
+            wk-01: {ansible_host: 10.10.0.21, node_ip: 10.10.0.21, longhorn_disk: /dev/disk/by-id/CHANGE-ME}
+            wk-02: {ansible_host: 10.10.0.22, node_ip: 10.10.0.22, longhorn_disk: /dev/disk/by-id/CHANGE-ME}
+            wk-03: {ansible_host: 10.10.0.23, node_ip: 10.10.0.23, longhorn_disk: /dev/disk/by-id/CHANGE-ME}
