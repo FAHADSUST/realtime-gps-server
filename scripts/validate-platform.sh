@@ -29,7 +29,7 @@ need() {
 check_yaml() {
   need yamllint
   step "yamllint"
-  yamllint -s infra/ansible deploy/kubernetes
+  yamllint -s infra/ansible deploy/kubernetes .github
 }
 
 check_shell() {
