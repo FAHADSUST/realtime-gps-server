@@ -1,0 +1,92 @@
+---
+# Helm runs on the control planes: Ansible installs the platform charts from the first one.
+- name: Create the download cache
+  ansible.builtin.file:
+    path: /var/cache/helm-release
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download Helm {{ helm_version }}
+  ansible.builtin.get_url:
+    url: "{{ control_plane_tools_helm_download_base_url }}/helm-{{ helm_version }}-linux-{{ node_arch }}.tar.gz"
+    dest: /var/cache/helm-release/helm-{{ helm_version }}-linux-{{ node_arch }}.tar.gz
+    checksum: "sha256:{{ helm_sha256[node_arch] }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create the Helm install directory
+  ansible.builtin.file:
+    path: /opt/helm/{{ helm_version }}
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# The archive's files belong to the build user (uid 1001). Unpacked as is, that unprivileged uid
+# would own a binary root runs; owner and group hand everything to root.
+- name: Unpack Helm
+  ansible.builtin.unarchive:
+    src: /var/cache/helm-release/helm-{{ helm_version }}-linux-{{ node_arch }}.tar.gz
+    dest: /opt/helm/{{ helm_version }}
+    remote_src: true
+    owner: root
+    group: root
+
+# Replaces any helm installed by hand: this role owns the version.
+- name: Put Helm on the PATH
+  ansible.builtin.file:
+    src: /opt/helm/{{ helm_version }}/linux-{{ node_arch }}/helm
+    dest: /usr/local/bin/helm
+    state: link
+    force: true
+
+- name: Look up the kubectl user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ control_plane_tools_kubectl_user }}"
+
+- name: Note the kubectl user's home directory and group
+  ansible.builtin.set_fact:
+    control_plane_tools_kubectl_home: "{{ ansible_facts['getent_passwd'][control_plane_tools_kubectl_user][4] }}"
+    control_plane_tools_kubectl_gid: "{{ ansible_facts['getent_passwd'][control_plane_tools_kubectl_user][2] }}"
+
+- name: Create the kubectl user's .kube directory
+  ansible.builtin.file:
+    path: "{{ control_plane_tools_kubectl_home }}/.kube"
+    state: directory
+    owner: "{{ control_plane_tools_kubectl_user }}"
+    group: "{{ control_plane_tools_kubectl_gid }}"
+    mode: "0700"
+
+# Cluster-admin credentials, as kubeadm's own instructions hand out. The user already has sudo on
+# the node, so this grants nothing new.
+- name: Give the kubectl user the admin kubeconfig
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ control_plane_tools_kubectl_home }}/.kube/config"
+    remote_src: true
+    owner: "{{ control_plane_tools_kubectl_user }}"
+    group: "{{ control_plane_tools_kubectl_gid }}"
+    mode: "0600"
+
+- name: Generate shell completion for kubectl and Helm
+  ansible.builtin.command:
+    argv: ["{{ item }}", completion, bash]
+  loop: [kubectl, helm]
+  register: control_plane_tools_completion
+  changed_when: false
+  check_mode: false
+
+- name: Install shell completion
+  ansible.builtin.copy:
+    content: "{{ item.stdout }}\n"
+    dest: /etc/bash_completion.d/{{ item.item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ control_plane_tools_completion.results }}"
+  loop_control:
+    label: "{{ item.item }}"

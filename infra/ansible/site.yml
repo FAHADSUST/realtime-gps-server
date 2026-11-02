@@ -35,3 +35,10 @@
   roles:
     - role: kubeadm_join
   tags: [kubeadm]
+
+- name: Install kubectl access and Helm on the control planes
+  hosts: control_plane
+  become: true
+  roles:
+    - role: control_plane_tools
+  tags: [kubeadm]

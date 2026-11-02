@@ -1,0 +1,6 @@
+---
+# Point at an internal mirror that keeps the upstream file names when nodes cannot reach get.helm.sh.
+control_plane_tools_helm_download_base_url: https://get.helm.sh
+
+# Gets kubectl access on the control planes (a copy of admin.conf in ~/.kube/config).
+control_plane_tools_kubectl_user: "{{ ansible_user }}"
