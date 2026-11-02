@@ -1,0 +1,103 @@
+---
+- name: Check whether this node is already part of the cluster
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubeadm_join_kubelet_conf
+
+# Join credentials are created on the first control plane, per node and only when needed, so
+# nothing long-lived exists for a node that has already joined. no_log keeps them out of output.
+- name: Join the cluster
+  when: not kubeadm_join_kubelet_conf.stat.exists
+  block:
+    - name: Create a bootstrap token for this node
+      ansible.builtin.command:
+        argv:
+          - kubeadm
+          - token
+          - create
+          - --ttl={{ kubeadm_join_token_ttl }}
+          - --description=Ansible join of {{ inventory_hostname }}
+          - --print-join-command
+      delegate_to: "{{ first_control_plane }}"
+      register: kubeadm_join_command
+      changed_when: true
+      no_log: true
+
+    - name: Share the control plane certificates with this node
+      when: inventory_hostname in groups['control_plane']
+      block:
+        - name: Generate a key to encrypt the certificates with
+          ansible.builtin.command: kubeadm certs certificate-key
+          delegate_to: "{{ first_control_plane }}"
+          register: kubeadm_join_certificate_key
+          changed_when: false
+          no_log: true
+
+        # Stored encrypted in the kubeadm-certs Secret, which kubeadm deletes after two hours.
+        - name: Upload the certificates for the new control plane
+          ansible.builtin.command:
+            argv:
+              - kubeadm
+              - init
+              - phase
+              - upload-certs
+              - --upload-certs
+              - --certificate-key={{ kubeadm_join_certificate_key.stdout }}
+          delegate_to: "{{ first_control_plane }}"
+          changed_when: true
+          no_log: true
+
+    - name: Create the Kubernetes configuration directory
+      ansible.builtin.file:
+        path: /etc/kubernetes
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Write the join configuration
+      ansible.builtin.template:
+        src: kubeadm-join.yaml.j2
+        dest: /etc/kubernetes/kubeadm-join.yaml
+        owner: root
+        group: root
+        mode: "0600"
+      vars:
+        # Parsed from "kubeadm join <endpoint> --token <t> --discovery-token-ca-cert-hash <h>".
+        kubeadm_join_token: "{{ kubeadm_join_command.stdout | regex_findall('--token +([^ ]+)') | first }}"
+        kubeadm_join_ca_cert_hash: >-
+          {{ kubeadm_join_command.stdout | regex_findall('--discovery-token-ca-cert-hash +([^ ]+)') | first }}
+      no_log: true
+
+    - name: Run kubeadm join
+      ansible.builtin.command:
+        cmd: kubeadm join --config /etc/kubernetes/kubeadm-join.yaml
+        creates: /etc/kubernetes/kubelet.conf
+
+  always:
+    - name: Remove the join configuration and the credentials in it
+      ansible.builtin.file:
+        path: /etc/kubernetes/kubeadm-join.yaml
+        state: absent
+
+- name: Announce the API VIP from this control plane as well
+  ansible.builtin.include_role:
+    name: kube_vip
+  when: inventory_hostname in groups['control_plane']
+
+# Purely descriptive: shows the role in `kubectl get nodes`. Nodes cannot set node-role labels on
+# themselves, so the first control plane does it.
+- name: Label the node as a worker
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig=/etc/kubernetes/admin.conf
+      - label
+      - node
+      - "{{ inventory_hostname }}"
+      - node-role.kubernetes.io/worker=
+      - --overwrite
+  delegate_to: "{{ first_control_plane }}"
+  register: kubeadm_join_label
+  changed_when: "'not labeled' not in kubeadm_join_label.stdout"
+  when: inventory_hostname in groups['workers']

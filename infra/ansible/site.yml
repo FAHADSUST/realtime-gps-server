@@ -19,3 +19,19 @@
   roles:
     - role: kubeadm_init
   tags: [kubeadm]
+
+# One at a time: each join adds an etcd member, and etcd must reach quorum between additions.
+- name: Join the other control planes
+  hosts: control_plane[1:]
+  serial: 1
+  become: true
+  roles:
+    - role: kubeadm_join
+  tags: [kubeadm]
+
+- name: Join the workers
+  hosts: workers
+  become: true
+  roles:
+    - role: kubeadm_join
+  tags: [kubeadm]
