@@ -15,6 +15,7 @@ gitops:
 project:
   helmRepositories:
     - https://prometheus-community.github.io/helm-charts
+    - https://grafana-community.github.io/helm-charts
   namespaces:
     # kube-prometheus-stack adds Services there to scrape the control plane.
     - kube-system
@@ -26,3 +27,7 @@ apps:
     enabled: true
     # Prometheus Operator v0.94.2, the same as the CRDs Ansible installs (prometheus-operator-crds).
     chartVersion: 92.17.0
+  grafana:
+    enabled: true
+    # Grafana 13.3.0. Grafana's own grafana/grafana chart is deprecated; the community maintains it.
+    chartVersion: 14.3.0

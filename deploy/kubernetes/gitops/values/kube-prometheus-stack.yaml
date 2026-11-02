@@ -8,9 +8,13 @@ crds:
 
 cleanPrometheusOperatorObjectNames: true
 
-# Grafana is deployed on its own, from the grafana-community chart.
+# Grafana is deployed on its own, from the grafana-community chart. This release still publishes
+# its Prometheus and Alertmanager data sources and its Kubernetes dashboards as labelled ConfigMaps,
+# which Grafana's sidecars load.
 grafana:
   enabled: false
+  forceDeployDatasources: true
+  forceDeployDashboards: true
 
 # Cilium replaces kube-proxy: nothing to scrape, nothing to alert on.
 kubeProxy:

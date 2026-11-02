@@ -6,7 +6,7 @@
 #   ansible-playbook site.yml --limit wk-04     # bring a new node in
 #
 # Tags in pipeline order: nodes, kubeadm, crds, cilium, metallb, longhorn, ingress, tls, ops-ui,
-# argocd.
+# secrets, argocd.
 # Once group_vars/all/vault.yml exists (the ops-ui layer needs it), every run needs the vault
 # password: add --ask-vault-pass.
 
@@ -111,6 +111,14 @@
   roles:
     - role: ops_ui
   tags: [ops-ui]
+
+# Before Argo CD: the applications it deploys reference these by name from their first sync.
+- name: Write the secrets Argo CD applications use
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - role: platform_secrets
+  tags: [secrets]
 
 - name: Install Argo CD
   hosts: control_plane[0]

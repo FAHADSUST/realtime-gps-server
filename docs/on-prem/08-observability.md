@@ -9,9 +9,10 @@ first pod.
 |---|---|---|
 | Prometheus | Scrapes and stores metrics, evaluates alert rules | `https://prometheus.rls.internal` |
 | Alertmanager | Groups, silences and routes alerts | `https://alertmanager.rls.internal` |
+| Grafana | Dashboards over metrics and logs | `https://grafana.rls.internal` |
 
-Both have no login of their own and sit behind the operator basic authentication (see
-[06 — TLS](06-tls.md#operator-uis)).
+Prometheus and Alertmanager have no login of their own and sit behind the operator basic
+authentication (see [06 — TLS](06-tls.md#operator-uis)); Grafana has its own.
 
 ---
 
@@ -58,10 +59,32 @@ permanently on purpose: it proves the alerting pipeline works end to end.
 
 ---
 
+## Grafana
+
+Grafana 13.3.0 from the grafana-community chart 14.3.0 — Grafana Labs deprecated its own
+`grafana/grafana` chart, and the community now maintains it. Values:
+[`values/grafana.yaml`](../../deploy/kubernetes/gitops/values/grafana.yaml). It syncs in wave 1,
+after the data it shows exists.
+
+| Setting | Value | Why |
+|---|---|---|
+| Admin login | User `admin`, password from the vault (`vault_grafana_admin_password`) | Ansible writes the `grafana-admin` Secret; Git only names it |
+| Data sources | Loaded from ConfigMaps labelled `grafana_datasource` | kube-prometheus-stack publishes Prometheus (the default) and Alertmanager with their in-cluster addresses |
+| Dashboards | Loaded from ConfigMaps labelled `grafana_dashboard`, in any namespace | Kubernetes, node and Prometheus dashboards from kube-prometheus-stack; Cilium, Hubble and Cilium operator dashboards from Cilium |
+| Storage | 2 Gi Longhorn volume, `Recreate` updates | Users, preferences and annotations survive restarts; dashboards are re-provisioned on every start anyway |
+| Phoning home | Off | No update checks, usage reports, news feed or Gravatar |
+
+Provisioned dashboards cannot be edited in place. To keep a dashboard of your own, export its JSON
+into a ConfigMap labelled `grafana_dashboard: "1"`, committed to Git — or save a copy under another
+name, which lives in Grafana's database.
+
+---
+
 ## Run
 
 Nothing to run by hand: once Argo CD has synced the `gitops` application, it creates
-`kube-prometheus-stack` and keeps it in line with Git. To change a setting, edit the values file and
+`kube-prometheus-stack` and `grafana` and keeps them in line with Git. The Grafana admin Secret
+comes first, from Ansible: `ansible-playbook site.yml --tags secrets --ask-vault-pass`. To change a setting, edit the values file and
 merge (see [07 — GitOps](07-gitops.md#making-a-change)).
 
 ## Verify
@@ -76,6 +99,9 @@ In `https://prometheus.rls.internal`, **Status → Target health** lists every t
 `kube-controller-manager`, `kube-scheduler` and `kube-etcd`. **Alerts** shows `Watchdog` firing and,
 on a healthy cluster, nothing else.
 
+In `https://grafana.rls.internal`, sign in as `admin`. **Connections → Data sources** lists
+Prometheus and Alertmanager; **Dashboards** holds the Kubernetes and Cilium folders, with data.
+
 ---
 
 ## Troubleshooting
@@ -86,3 +112,5 @@ on a healthy cluster, nothing else.
 | A target is `DOWN` with a timeout | A network policy blocks Prometheus. Policies must admit pods labelled `app.kubernetes.io/name: prometheus` from `monitoring`; `hubble observe --namespace <ns> --verdict DROPPED` shows the drop |
 | A ServiceMonitor exists but no target appears | Its selector does not match the Service's labels, or the Service's port name differs from the one the monitor names |
 | The application is `OutOfSync` on webhook configurations | The `caBundle` difference is ignored by design; anything else in the diff is real |
+| Grafana's pod fails with `secret "grafana-admin" not found` | The secrets layer has not run: `ansible-playbook site.yml --tags secrets --ask-vault-pass` |
+| A dashboard shows "No data" | Check its data source variable at the top of the dashboard, then the query's metric in Prometheus: the target behind it may be down |

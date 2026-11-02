@@ -140,7 +140,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P8 | cert-manager — internal CA | ✅ done² ([guide](docs/on-prem/06-tls.md)) |
 | P9 | Argo CD — GitOps app-of-apps | ✅ done² ([guide](docs/on-prem/07-gitops.md)) |
 | P10 | Prometheus | ✅ done² ([guide](docs/on-prem/08-observability.md)) |
-| P11 | Grafana | ⬜ planned |
+| P11 | Grafana | ✅ done² ([guide](docs/on-prem/08-observability.md#grafana)) |
 | P12 | Loki + Alloy | ⬜ planned |
 | P13 | The application on Kubernetes | ⬜ planned |
 | P14 | Validation and operations runbook | ⬜ planned |
@@ -1568,6 +1568,18 @@ and webhook certificates come from cert-manager so syncs stay quiet. Prometheus 
 30 Gi Longhorn volume; Prometheus and Alertmanager are published over TLS behind the operator
 login. Rendered exactly as Argo CD will (88 objects, all schema-valid). Guide:
 [08 — Observability](docs/on-prem/08-observability.md).
+
+### P11 — Grafana
+
+Grafana 13.3.0 from the grafana-community chart (Grafana Labs deprecated its own), deployed by
+Argo CD in wave 1 at `https://grafana.rls.internal`. Its admin password comes from the vault through
+a new `platform_secrets` role, which writes every Secret the Argo CD applications reference and
+refuses placeholder values. Data sources and dashboards are provisioned from labelled ConfigMaps:
+kube-prometheus-stack now publishes its Prometheus and Alertmanager data sources and Kubernetes
+dashboards for it, and Cilium's dashboards are picked up from `kube-system`. A 2 Gi volume keeps
+users and preferences; update checks and usage reporting are off. Every Argo CD application is
+rendered the way Argo CD does and schema-validated (122 objects). Guide:
+[08 — Observability](docs/on-prem/08-observability.md#grafana).
 
 <!-- next-commit-log-entry -->
 

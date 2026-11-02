@@ -1,0 +1,10 @@
+---
+# Secrets that applications deployed by Argo CD reference by name. Git never holds their values:
+# Ansible writes them from the vault, the manifests in Git only name them. Each entry becomes one
+# Secret; its namespace is created if missing.
+platform_secrets_list:
+  - name: grafana-admin
+    namespace: "{{ monitoring_namespace }}"
+    data:
+      admin-user: admin
+      admin-password: "{{ vault_grafana_admin_password }}"

@@ -91,7 +91,8 @@ export ANSIBLE_VAULT_PASSWORD_FILE=~/.config/rls/vault-pass
 ```
 
 `ansible-vault edit inventory/group_vars/all/vault.yml` changes a value in place; re-run the layer
-that uses it. Keep a copy of the vault password somewhere safe and separate (a password manager):
+that uses it. Secrets for applications Argo CD deploys are written by the `platform_secrets` role
+(`--tags secrets`), which refuses to run while any of them still holds `CHANGE-ME`. Keep a copy of the vault password somewhere safe and separate (a password manager):
 without it the file cannot be read, and the secrets would have to be set again.
 
 ---
