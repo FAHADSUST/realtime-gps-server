@@ -134,7 +134,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P3 | kubeadm — HA control plane with kube-vip | ✅ done² ([guide](docs/on-prem/03-kubernetes.md)) |
 | P4 | Cilium — CNI, kube-proxy replacement, Hubble | ✅ done² ([guide](docs/on-prem/03-kubernetes.md#cilium-the-pod-network)) |
 | P5 | MetalLB — L2 address pool | ✅ done² ([guide](docs/on-prem/04-networking.md)) |
-| P6 | Longhorn — replicated storage | ⬜ planned |
+| P6 | Longhorn — replicated storage | ✅ done² ([guide](docs/on-prem/05-storage.md)) |
 | P7 | Ingress-NGINX | ⬜ planned |
 | P8 | cert-manager — internal CA | ⬜ planned |
 | P9 | Argo CD — GitOps app-of-apps | ⬜ planned |
@@ -1508,6 +1508,17 @@ Custom resources go through a new `kubectl_apply` role that diffs before a serve
 re-runs report changes only when there are some; a small, unit-tested filter plugin does the
 address arithmetic. Metrics and pool-exhaustion alerts are enabled. Guide:
 [04 — Networking](docs/on-prem/04-networking.md).
+
+### P6 — Longhorn: replicated storage (P6.1 – P6.3)
+
+Terraform now tells Ansible where each worker's data disk is, by a stable device path. The workers
+get Longhorn's prerequisites (iSCSI, NFS client, encryption tools, a multipath blacklist), and their
+data disks are formatted and mounted at `/var/lib/longhorn` — but only after `lsblk` shows an empty,
+unpartitioned disk, so a wrong device name stops the run instead of destroying data (the check is
+unit-tested against nine disk layouts). Longhorn 1.13.0 becomes the default StorageClass with three
+replicas per volume, deletes pods stuck on dead nodes so they can move, does not call home, and lets
+Prometheus — and only Prometheus — through its network policy to scrape metrics. Guide:
+[05 — Storage](docs/on-prem/05-storage.md).
 
 <!-- next-commit-log-entry -->
 

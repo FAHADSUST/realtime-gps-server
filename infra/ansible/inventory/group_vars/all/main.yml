@@ -26,5 +26,9 @@ kubeconfig_path: /etc/kubernetes/admin.conf
 # longhorn_disk) is mounted here.
 longhorn_data_path: /var/lib/longhorn
 
+# Namespace of Prometheus, Grafana and Loki. Add-ons that restrict their traffic let Prometheus in
+# from here.
+monitoring_namespace: monitoring
+
 # CPU architecture in the form release artefacts use (amd64, arm64).
 node_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] }}"

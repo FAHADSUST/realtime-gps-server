@@ -1,0 +1,31 @@
+---
+- name: Install Longhorn
+  kubernetes.core.helm:
+    name: longhorn
+    chart_ref: longhorn
+    chart_repo_url: "{{ longhorn_chart_repo }}"
+    chart_version: "{{ longhorn_chart_version }}"
+    release_namespace: longhorn-system
+    create_namespace: true
+    kubeconfig: "{{ kubeconfig_path }}"
+    release_values: "{{ lookup('ansible.builtin.template', 'values.yaml.j2') | from_yaml }}"
+    wait: true
+    timeout: 10m
+
+# The CSI driver is deployed by Longhorn itself after the chart, so the release being ready does
+# not yet mean volumes can be provisioned.
+- name: Wait for the Longhorn CSI driver
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ kubeconfig_path }}
+      - --namespace=longhorn-system
+      - rollout
+      - status
+      - daemonset/longhorn-csi-plugin
+      - --timeout=10m
+  register: longhorn_csi_rollout
+  until: longhorn_csi_rollout.rc == 0
+  retries: 10
+  delay: 15
+  changed_when: false
