@@ -16,8 +16,10 @@ Code: [`infra/terraform`](../../infra/terraform).
 
 ## Prerequisites
 
-**Proxmox VE 8 or newer** with a storage pool for VM disks (`local-lvm` by default) and a bridge on
-the node network (`vmbr0`).
+**Proxmox VE 9** — ideally a cluster of two or more hosts, built with
+[00 — Proxmox VE](00-proxmox.md) — with a storage pool for VM disks (`local-lvm` by default, the
+same name on every host) and a bridge on the node network (`vmbr0`). Proxmox VE 8 reached end of
+life in August 2026.
 
 **An API token for Terraform.** On any Proxmox node:
 
@@ -42,7 +44,8 @@ TEMPLATE_ID=9000 STORAGE=local-lvm BRIDGE=vmbr0 ./create-ubuntu-template.sh
 ```
 
 The guest agent matters: without it Proxmox cannot see a VM's addresses or shut it down cleanly,
-and Terraform waits on it.
+and Terraform waits on it. One template serves the whole Proxmox cluster: a VM placed on another
+host is cloned on the template's host and migrated there.
 
 **On your workstation:** Terraform 1.9 or newer.
 
@@ -128,6 +131,11 @@ terraform apply -target='module.node["wk-01"]' -var allow_vm_reboot=true
 kubectl uncordon wk-01
 ```
 
+**Move a node to another Proxmox host:** change its `proxmox_node` and apply. Terraform migrates
+the VM — online, with its disks — rather than replacing it. The same goes for a VM moved by hand,
+say while its host is patched ([00 — Proxmox VE](00-proxmox.md#patching-a-host)): the next apply
+moves it back to its `proxmox_node`, unless you update `proxmox_node` first.
+
 **State.** State is local by default. It never contains the API token (provider settings are not
 stored in state), but it does describe every VM, so keep it private and back it up: losing it means
 re-importing every machine. For a team, use a shared backend that also lives on-prem;
@@ -146,3 +154,4 @@ accepts the same inputs. Its outputs are all that Ansible consumes, so nothing d
 | `403 Permission check failed` | The token was created with privilege separation; recreate it with `--privsep 0` |
 | VM boots but has no network | Wrong bridge or VLAN in `network`; check the VM's `net0` in the Proxmox UI |
 | kubeadm later rejects a node for a duplicate `product_uuid` | The VM was copied outside Terraform; clones made by Proxmox get unique ids |
+| A VM for another host fails to clone or migrate | The hosts are not one Proxmox cluster, or `datastore_id` doesn't exist on the target host (see [00](00-proxmox.md#troubleshooting)) |

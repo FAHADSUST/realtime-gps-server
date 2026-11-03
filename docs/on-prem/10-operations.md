@@ -25,6 +25,7 @@ request — and Ansible runs need `--ask-vault-pass`.
 | Check Kubernetes certificates | Monthly | `sudo kubeadm certs check-expiration` on a control plane. Every upgrade renews them; otherwise see [Expired certificates](#expired-certificates) |
 | Free registry space | Monthly | `registry garbage-collect` (see [09 — Application](09-application.md#the-image-registry)) |
 | OS updates | Weekly | Unattended upgrades install security fixes; nodes that need a reboot are rebooted one by one, below |
+| Proxmox host updates | Monthly | One host at a time, never with two control planes on it: [00 — Proxmox VE](00-proxmox.md#patching-a-host) |
 | Practise a restore | Quarterly | Restore an etcd snapshot and a Longhorn backup into a scratch cluster. An untested backup is a hope |
 
 **Rebooting a node**, one at a time:
@@ -133,6 +134,22 @@ kubectl delete node cp-03
 terraform apply -replace='module.node["cp-03"].proxmox_virtual_environment_vm.this'
 ansible-playbook site.yml --limit cp-03 --ask-vault-pass
 ```
+
+### A Proxmox host fails
+
+Every VM on it goes down at once; [00 — Proxmox VE](00-proxmox.md#what-a-host-failure-does) shows
+what that means for each layout. With two hosts, losing the one with two control planes stops the
+Kubernetes API until it returns — or until etcd is restored on the surviving control plane, below.
+
+If the host is gone for good:
+
+1. On a surviving host, remove it from the Proxmox cluster: `pvecm delnode <host>`. With a QDevice,
+   run `pvecm qdevice remove` first — nodes can't be added or removed while one is set up.
+2. Install Proxmox VE on the replacement with the same name and addresses, and join it
+   ([00](00-proxmox.md#3-create-the-cluster)). With two hosts, set up the QDevice again.
+3. Rebuild its VMs as for a lost worker or control plane above: remove the Kubernetes nodes (and the
+   etcd members of control planes), `terraform apply` to recreate the VMs, then
+   `ansible-playbook site.yml --limit <nodes> --ask-vault-pass`.
 
 ### etcd quorum is lost
 

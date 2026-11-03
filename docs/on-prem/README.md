@@ -14,6 +14,7 @@ that is a reviewed commit.
 
 | Guide | Covers |
 |---|---|
+| [00 — Proxmox VE](00-proxmox.md) | A cluster of two or more hosts, the QDevice, storage, spreading the VMs, patching a host |
 | [01 — Terraform](01-terraform.md) | Proxmox VMs, the Ubuntu template, the generated Ansible inventory |
 | [02 — Ansible](02-ansible.md) | Inventory, variables, secrets, running the playbooks |
 | [03 — Kubernetes](03-kubernetes.md) | kubeadm, kube-vip, Cilium |
@@ -92,11 +93,17 @@ Every address and size below is a default in `infra/`, not a constant.
 Three control planes keep etcd quorum through the loss of one node. Three workers let Longhorn keep
 three replicas of every volume on three different machines.
 
+The VMs run on a Proxmox cluster of two or more hosts, spread so that a hardware failure takes out
+only part of the platform. With two hosts, one carries two control planes, and losing it stops the
+Kubernetes API until it returns; with three, losing any one host is survivable. See
+[00 — Proxmox VE](00-proxmox.md).
+
 ### Network plan
 
 | Range / address | Purpose |
 |---|---|
 | `10.10.0.0/24` | Node network (Proxmox bridge `vmbr0`) |
+| `10.10.0.2–9` | Proxmox hosts and the QDevice — outside Terraform's plan, see [00](00-proxmox.md#the-layout) |
 | `10.10.0.10` | Kubernetes API virtual IP (kube-vip) |
 | `10.10.0.11–13` | Control plane nodes |
 | `10.10.0.21–23` | Worker nodes |

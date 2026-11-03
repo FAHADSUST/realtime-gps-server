@@ -144,6 +144,7 @@ report as *skipped* rather than passing. They run for real as soon as Docker wor
 | P12 | Loki + Alloy | ✅ done² ([guide](docs/on-prem/08-observability.md#loki-and-alloy)) |
 | P13 | The application on Kubernetes | ✅ done² ([guide](docs/on-prem/09-application.md)) |
 | P14 | Validation and operations runbook | ✅ done² ([guide](docs/on-prem/10-operations.md)) |
+| P15 | Proxmox on two or more hosts | ✅ done³ ([guide](docs/on-prem/00-proxmox.md)) |
 
 ² Ansible cannot run on the Windows workstation this is developed on, so the playbooks have not
 been executed against nodes yet. They are checked with yamllint and by rendering every template and
@@ -151,6 +152,9 @@ parsing the result — kubeadm configurations with `kubeadm config validate` fro
 manifests with kubeconform, alert rules with promtool, the log pipeline with `alloy validate`. The
 Ansible syntax check and ansible-lint run in CI (`scripts/validate-platform.sh`), which has not run
 yet: it starts once this branch's pull request is opened.
+
+³ Written from the Proxmox VE 9.2 documentation and the Terraform provider's source, and checked
+with `terraform validate` and a plan; not yet run on physical hosts.
 
 ---
 
@@ -181,19 +185,21 @@ platform, explained](docs/platform-explained/README.md)** tells the same story w
 tool and why it was chosen, end-to-end flows, failure scenarios, a 15-minute talk and interview
 questions.
 
-From bare Proxmox to the API answering at `https://api.rls.internal`:
+From bare servers to the API answering at `https://api.rls.internal`:
 
-1. **Machines** — in `infra/terraform`, fill in `terraform.tfvars` and `terraform apply`: six VMs,
-   and the Ansible inventory written for you ([01](docs/on-prem/01-terraform.md)).
-2. **Secrets** — copy `infra/ansible/inventory/vault.example.yml` to
+1. **Hypervisors** — Proxmox VE 9 on two or more hosts, joined into one cluster, with a QDevice
+   when there are only two ([00](docs/on-prem/00-proxmox.md)).
+2. **Machines** — in `infra/terraform`, fill in `terraform.tfvars` and `terraform apply`: six VMs
+   spread across the hosts, and the Ansible inventory written for you ([01](docs/on-prem/01-terraform.md)).
+3. **Secrets** — copy `infra/ansible/inventory/vault.example.yml` to
    `group_vars/all/vault.yml`, fill it in, `ansible-vault encrypt` it ([02](docs/on-prem/02-ansible.md#secrets)).
-3. **Cluster and platform** — `ansible-playbook site.yml --ask-vault-pass` in `infra/ansible`:
+4. **Cluster and platform** — `ansible-playbook site.yml --ask-vault-pass` in `infra/ansible`:
    Kubernetes, networking, storage, TLS and Argo CD; Argo CD then deploys monitoring, logging and the
    image registry from Git ([03](docs/on-prem/03-kubernetes.md) – [08](docs/on-prem/08-observability.md)).
-4. **DNS and trust** — point `*.rls.internal` at `10.10.0.200` and import
+5. **DNS and trust** — point `*.rls.internal` at `10.10.0.200` and import
    `infra/ansible/artifacts/rls-onprem-root-ca.crt` on workstations
    ([04](docs/on-prem/04-networking.md#dns), [06](docs/on-prem/06-tls.md)).
-5. **Release** — `./scripts/publish-images.sh`, then set `apps.gps.imageTag` (and `enabled`) in
+6. **Release** — `./scripts/publish-images.sh`, then set `apps.gps.imageTag` (and `enabled`) in
    `deploy/kubernetes/gitops/values.yaml` and merge ([09](docs/on-prem/09-application.md#releasing)).
 
 Day 2 — upgrades, backups, recovery — is in [10 — Operations](docs/on-prem/10-operations.md);
@@ -1652,6 +1658,19 @@ radius query, sign-up, a release, a certificate, metrics and logs, a secret; sec
 failure scenarios, backups and upgrades; how the code is validated; a 15-minute talk with speaker
 notes; 77 interview questions with answers; and a glossary. All 62 Mermaid diagrams parse and render
 with Mermaid 10 and 11.
+
+### P15 — Proxmox on two or more hosts (P15.1 – P15.2)
+
+On one Proxmox host, that host was a single point of failure for the whole platform.
+[00 — Proxmox VE](docs/on-prem/00-proxmox.md) builds a cluster of two or more hosts: every host
+networked the same way, with a dedicated corosync link; the cluster itself; the QDevice that gives a
+two-host cluster its third vote; local storage, since etcd and Longhorn already replicate; migrations
+kept off the corosync link; each VM placed with `proxmox_node`; what each host's failure does; and
+patching a host without losing etcd's majority. It is upfront about the limit of two hosts: one of
+them carries two of the three control planes, so for the Kubernetes API to survive the loss of any
+host, the third control plane needs a third machine — which can be small. Terraform now migrates a
+VM that changes host instead of replacing it, so a VM moved by hand during maintenance can no longer
+cost a node on the next apply.
 
 <!-- next-commit-log-entry -->
 
