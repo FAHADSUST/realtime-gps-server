@@ -22,6 +22,14 @@ resource "proxmox_virtual_environment_vm" "this" {
   # the node is drained and the apply is re-run with allow_vm_reboot = true.
   reboot_after_update = var.allow_reboot
 
+  # A VM that changes Proxmox host is migrated, never replaced. By default the provider treats a new
+  # host as a new VM: after a VM was moved by hand - say, to keep etcd's majority while its host is
+  # patched - the next apply would destroy that Kubernetes node and clone an empty one. Now it
+  # migrates the VM back to proxmox_node, online and with its local disks, or leaves it once
+  # proxmox_node names the new host. A worker's data disk needs longer than the default 30 minutes.
+  migrate         = true
+  timeout_migrate = 7200
+
   clone {
     vm_id     = var.template_vm_id
     node_name = coalesce(var.template_node, var.proxmox_node)
