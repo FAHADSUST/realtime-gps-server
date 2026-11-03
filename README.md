@@ -1659,7 +1659,7 @@ failure scenarios, backups and upgrades; how the code is validated; a 15-minute 
 notes; 77 interview questions with answers; and a glossary. All 62 Mermaid diagrams parse and render
 with Mermaid 10 and 11.
 
-### P15 — Proxmox on two or more hosts (P15.1 – P15.2)
+### P15 — Proxmox on two or more hosts (P15.1 – P15.3)
 
 On one Proxmox host, that host was a single point of failure for the whole platform.
 [00 — Proxmox VE](docs/on-prem/00-proxmox.md) builds a cluster of two or more hosts: every host
@@ -1670,7 +1670,9 @@ patching a host without losing etcd's majority. It is upfront about the limit of
 them carries two of the three control planes, so for the Kubernetes API to survive the loss of any
 host, the third control plane needs a third machine — which can be small. Terraform now migrates a
 VM that changes host instead of replacing it, so a VM moved by hand during maintenance can no longer
-cost a node on the next apply.
+cost a node on the next apply. [Page 10](docs/platform-explained/10-proxmox-hosts.md) of the platform,
+explained, tells the same story with diagrams — the two majorities, two hosts or three, a VM landing
+on the second host, patching without an outage — and eight more interview questions.
 
 <!-- next-commit-log-entry -->
 

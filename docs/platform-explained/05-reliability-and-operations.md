@@ -49,6 +49,7 @@ flowchart TB
 | Every volume | 3 replicas on 3 workers | The volume keeps working from the remaining replicas |
 | MySQL, Redis, RabbitMQ | 1 each | Restarts on another worker with its volume after about five minutes — stored data is kept, but [users notice while it's away](#while-a-data-store-is-away) |
 | Prometheus, Loki, Grafana | 1 each | Same: restart elsewhere, data intact |
+| Proxmox hosts | 2 or 3 | Depends on the layout — with two hosts, losing the one with two control planes stops the Kubernetes API ([page 10](10-proxmox-hosts.md)) |
 
 ### While a data store is away
 
@@ -135,6 +136,13 @@ flowchart TB
 > **Interview soundbite:** *"Losing the control plane doesn't take the application down — the data
 > plane keeps forwarding packets. What you lose is the ability to change anything. That's why
 > etcd snapshots are taken nightly, and why restoring one is something to practise."*
+
+### A Proxmox host dies
+
+Every VM on it fails at once: a control plane or two, a worker or two. What survives depends on how
+the VMs are spread — with two hosts, losing the one that holds two control planes stops the
+Kubernetes API, while the other host's applications keep serving. With three hosts, any one can
+fail. [Page 10](10-proxmox-hosts.md#what-a-host-failure-does) has the full picture.
 
 ### A disk fails
 

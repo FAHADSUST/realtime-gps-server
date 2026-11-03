@@ -271,7 +271,7 @@ Keep [page 8](08-interview-questions.md) in mind. The most likely follow-ups, by
 | 6 | "Why Cilium?" · "Why do you need both MetalLB and Ingress-NGINX?" |
 | 8 | "How do secrets work with GitOps?" · "How do you roll back?" |
 | 9 | "What would you alert on?" |
-| 11 | "How do you upgrade Kubernetes?" |
+| 11 | "How do you upgrade Kubernetes?" · "What if a whole server dies?" ([page 10](10-proxmox-hosts.md)) |
 
 ---
 

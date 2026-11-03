@@ -126,6 +126,10 @@ flowchart TB
 (*quorum*) to work. With three members it survives losing one. Two would survive nothing; four
 would survive the same one failure as three.
 
+The diagram shows one Proxmox host for simplicity — but then that host is a single point of
+failure. Spreading the VMs over two or more hosts, and what each layout protects, is
+[page 10](10-proxmox-hosts.md).
+
 ---
 
 ## The logical view: what runs inside the cluster

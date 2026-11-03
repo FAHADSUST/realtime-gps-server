@@ -71,6 +71,7 @@ API through the front door the platform provides.
 | 7 | [The presentation](07-presentation.md) | A 15-minute talk, slide by slide, with what to say | — |
 | 8 | [Interview questions](08-interview-questions.md) | 77 likely questions, answered from this project | — |
 | 9 | [Glossary](09-glossary.md) | Every term in plain words | — |
+| 10 | [Two or more Proxmox hosts](10-proxmox-hosts.md) | How do the VMs spread over physical servers — and what survives losing one? | 15 min |
 
 ---
 
@@ -79,7 +80,7 @@ API through the front door the platform provides.
 | Day | Read | Then practise |
 |---|---|---|
 | 1 | Pages 1 and 2 | Draw the one-page diagram above from memory. Explain each of the twelve tools in one sentence |
-| 2 | Pages 3, 4 and 5 | Walk through the location-ping journey out loud. Explain what happens when a worker dies |
+| 2 | Pages 3, 4, 5 and 10 | Walk through the location-ping journey out loud. Explain what happens when a worker dies — and why two servers can't keep etcd's majority |
 | 3 | Pages 6, 7 and 8 | Give the 15-minute talk once, timed. Answer ten random questions from page 8 without notes |
 
 ---

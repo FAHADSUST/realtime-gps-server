@@ -24,6 +24,7 @@ actually built.
 | [Reliability and operations](#reliability-and-operations) | 63–68 |
 | [The application](#the-application) | 69–73 |
 | [About you and your choices](#about-you-and-your-choices) | 74–77 |
+| [Proxmox hosts](10-proxmox-hosts.md#questions-you-may-get) | 8 more, on page 10 |
 
 ---
 

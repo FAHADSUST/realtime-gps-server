@@ -1,6 +1,6 @@
 # 9 — Glossary
 
-[← Interview questions](08-interview-questions.md) · [Back to the start](README.md)
+[← Interview questions](08-interview-questions.md) · Next: [Two or more Proxmox hosts →](10-proxmox-hosts.md)
 
 Every term used in these pages, in plain words. Where it matters, the *here* column says how this
 project uses it.
@@ -28,6 +28,7 @@ project uses it.
 | **containerd** | The container runtime: it pulls images and runs containers for the kubelet | 2.4.2, from upstream |
 | **Control plane** | The nodes running Kubernetes' brain: API server, etcd, scheduler, controller manager | cp-01, cp-02, cp-03 |
 | **Cordon / drain** | Mark a node "no new pods" / then move its pods elsewhere — before maintenance | Every reboot and upgrade |
+| **Corosync** | The heartbeat and voting system of a Proxmox cluster; it needs low, steady latency | On a dedicated link between the hosts |
 | **Correlation id** | An id attached to a request and written in every log line it causes | `X-Correlation-Id`, set by Kong |
 | **CRD** | Custom Resource Definition: teaches Kubernetes a new kind of object | `ServiceMonitor`, `Certificate`, `Application`… |
 | **CSI** | The plugin standard for storage in Kubernetes | Longhorn's driver |
@@ -54,6 +55,7 @@ project uses it.
 | **kube-vip** | Gives the control planes one floating IP address | `10.10.0.10` |
 | **Kong** | An API gateway: authentication, rate limits and routing in front of services | 3.9.4, with the `rls_auth` plugin |
 | **Lease** | A small Kubernetes object used for leader election: whoever renews it is the leader | kube-vip's leader election |
+| **Live migration** | Moving a running VM to another host without stopping it — here with its local disks too | Patching a Proxmox host |
 | **LoadBalancer Service** | A Service with an address reachable from outside the cluster | Given addresses by MetalLB |
 | **Longhorn** | Replicated block storage made from the nodes' own disks | 3 replicas per volume |
 | **Loki** | Stores logs, indexed only by labels | `monitoring` namespace, 14 days |
@@ -67,8 +69,10 @@ project uses it.
 | **Probe** (startup, readiness, liveness) | Kubernetes' checks: has it started? may it get traffic? should it be restarted? | On every service |
 | **Prometheus** | Collects metrics by scraping endpoints, stores them, evaluates alert rules | 15 days of metrics |
 | **PromQL / LogQL** | The query languages of Prometheus and Loki | Alerts, dashboards, log searches |
-| **Proxmox VE** | An open-source hypervisor for running VMs | Hosts the 6 nodes |
-| **Quorum** | A majority of members — what etcd needs to accept writes | 2 of 3 |
+| **Proxmox VE** | An open-source hypervisor for running VMs | Version 9; runs the 6 VMs |
+| **Proxmox cluster** | Proxmox hosts joined into one: shared configuration, one API, VMs that can move between hosts | Two or more hosts ([page 10](10-proxmox-hosts.md)) |
+| **QDevice** | A small daemon on a third machine that gives a two-host Proxmox cluster its third vote | Two-host clusters only |
+| **Quorum** | A majority of members — what etcd and a Proxmox cluster need before they act | 2 of 3 |
 | **RabbitMQ** | A message broker: queues messages between services | Ping → history pipeline |
 | **RBAC** | Role-based access control: who may do what in the Kubernetes API | |
 | **Reconcile** | Compare desired with actual state and fix the difference — the core loop of Kubernetes and Argo CD | |
@@ -79,6 +83,7 @@ project uses it.
 | **Server-side apply** | The API server merges your manifest and tracks who owns each field | Ansible and Argo CD both use it |
 | **ServiceMonitor** | Tells Prometheus which Service to scrape and how | Shipped with every chart |
 | **SLO / error budget** | A reliability target (e.g. 99.9 %) / how much failure that target allows | |
+| **Split brain** | Two halves of a cluster each carrying on alone after losing contact — what a majority rule prevents | Why two hosts need a QDevice |
 | **Static pod** | A pod the kubelet runs from a file on disk, with no API server needed | The control plane components, kube-vip |
 | **StatefulSet** | Like a Deployment, but pods keep a stable name and their own volume | MySQL, Redis, RabbitMQ |
 | **StorageClass** | Describes a kind of storage that volumes can be created from | `longhorn` (default) |
@@ -92,4 +97,4 @@ project uses it.
 
 ---
 
-[← Interview questions](08-interview-questions.md) · [Back to the start](README.md)
+[← Interview questions](08-interview-questions.md) · Next: [Two or more Proxmox hosts →](10-proxmox-hosts.md)
