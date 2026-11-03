@@ -1,0 +1,42 @@
+# Managed by Ansible (role: metallb). Addresses come from the inventory, which Terraform wrote
+# after checking them against the node addresses and the VIP.
+
+# The ingress address in a pool of its own that never hands it out automatically: only the
+# ingress controller's Service, which asks for it by name, can get it.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: ingress
+  namespace: metallb-system
+spec:
+  addresses:
+    - {{ ingress_lb_ip }}/32
+  autoAssign: false
+{% set metallb_service_ranges = metallb_address_pool | ipv4_range_without(ingress_lb_ip) %}
+{% if metallb_service_ranges %}
+---
+# Everything else in the range, for any other LoadBalancer Service.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: services
+  namespace: metallb-system
+spec:
+  addresses:
+{% for addresses in metallb_service_ranges %}
+    - {{ addresses }}
+{% endfor %}
+{% endif %}
+---
+# Answer ARP for these addresses on the node network.
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: node-network
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - ingress
+{% if metallb_service_ranges %}
+    - services
+{% endif %}

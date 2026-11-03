@@ -1,0 +1,23 @@
+---
+- name: Install Cilium
+  kubernetes.core.helm:
+    name: cilium
+    chart_ref: cilium
+    chart_repo_url: "{{ cilium_chart_repo }}"
+    chart_version: "{{ cilium_chart_version }}"
+    release_namespace: kube-system
+    kubeconfig: "{{ kubeconfig_path }}"
+    release_values: "{{ lookup('ansible.builtin.template', 'values.yaml.j2') | from_yaml }}"
+    wait: true
+    timeout: 10m
+
+# With a pod network in place the nodes turn Ready and CoreDNS can start.
+- name: Wait for every node to become Ready
+  ansible.builtin.command:
+    cmd: kubectl --kubeconfig={{ kubeconfig_path }} wait --for=condition=Ready nodes --all --timeout=10m
+  changed_when: false
+
+- name: Wait for cluster DNS
+  ansible.builtin.command:
+    cmd: kubectl --kubeconfig={{ kubeconfig_path }} -n kube-system rollout status deployment/coredns --timeout=5m
+  changed_when: false

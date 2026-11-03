@@ -1,0 +1,86 @@
+---
+# A freshly cloned VM may still be running cloud-init, which holds the apt lock. Waiting here turns
+# a random "could not get lock" failure into a short pause.
+- name: Wait for cloud-init to finish first boot
+  ansible.builtin.command: cloud-init status --wait
+  changed_when: false
+  failed_when: false
+
+- name: Set the host name to the inventory name
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ node_baseline_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# The kubelet refuses to start with swap on: memory limits mean nothing if a pod can page out.
+- name: Turn swap off now
+  ansible.builtin.command: swapoff -a
+  when: ansible_facts['swaptotal_mb'] | int > 0
+  changed_when: true
+
+- name: Keep swap off after reboots
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+    mode: "0644"
+
+- name: Load kernel modules at boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/kubernetes.conf
+    content: |
+      overlay
+      br_netfilter
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Load kernel modules now
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+
+- name: Apply Kubernetes kernel settings
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+    reload: true
+  loop: "{{ node_baseline_sysctls | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Create the timesyncd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/timesyncd.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: node_baseline_ntp_servers | length > 0
+
+- name: Configure time servers
+  ansible.builtin.copy:
+    dest: /etc/systemd/timesyncd.conf.d/ntp.conf
+    content: |
+      [Time]
+      NTP={{ node_baseline_ntp_servers | join(' ') }}
+    owner: root
+    group: root
+    mode: "0644"
+  when: node_baseline_ntp_servers | length > 0
+  notify: Restart timesyncd
+
+- name: Keep the clock synchronised
+  ansible.builtin.systemd_service:
+    name: systemd-timesyncd
+    enabled: true
+    state: started

@@ -1,0 +1,30 @@
+---
+- name: Check that the VIP interface carries this node's address
+  ansible.builtin.assert:
+    that: >-
+      node_ip in [kube_vip_interface_facts['ipv4']['address'] | default('')]
+      + (kube_vip_interface_facts['ipv4_secondaries'] | default([]) | map(attribute='address') | list)
+    fail_msg: >-
+      kube_vip_interface is '{{ kube_vip_interface }}', which does not carry {{ node_ip }}. Set
+      kube_vip_interface to the node's interface on the node network.
+    quiet: true
+  vars:
+    kube_vip_interface_facts: >-
+      {{ ansible_facts[kube_vip_interface | replace('-', '_') | replace('.', '_')] | default({}) }}
+
+- name: Create the static pod directory
+  ansible.builtin.file:
+    path: /etc/kubernetes/manifests
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# The kubelet picks up changes to this file by itself and recreates the pod.
+- name: Install the kube-vip static pod
+  ansible.builtin.template:
+    src: kube-vip.yaml.j2
+    dest: /etc/kubernetes/manifests/kube-vip.yaml
+    owner: root
+    group: root
+    mode: "0600"

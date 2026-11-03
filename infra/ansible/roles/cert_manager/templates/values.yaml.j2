@@ -1,0 +1,26 @@
+# Helm values for cert-manager {{ cert_manager_chart_version }} (role: cert_manager).
+
+# The chart installs and upgrades the CRDs, and keeps them if the release is ever removed - deleting
+# them would delete every Certificate and Issuer with them.
+crds:
+  enabled: true
+  keep: true
+
+# Two of everything with a disruption budget: node drains and upgrades never leave the cluster
+# unable to issue certificates or to admit cert-manager resources.
+replicaCount: 2
+podDisruptionBudget:
+  enabled: true
+webhook:
+  replicaCount: 2
+  podDisruptionBudget:
+    enabled: true
+cainjector:
+  replicaCount: 2
+  podDisruptionBudget:
+    enabled: true
+
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: true

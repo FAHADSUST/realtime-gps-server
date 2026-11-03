@@ -1,0 +1,13 @@
+---
+# ServiceMonitor, PodMonitor, PrometheusRule and the other monitoring.coreos.com types, installed
+# before any add-on: every chart that follows can ship its monitoring objects from the start, and
+# Prometheus, deployed later by Argo CD, picks them all up.
+- name: Install the Prometheus Operator CRDs
+  kubernetes.core.helm:
+    name: prometheus-operator-crds
+    chart_ref: prometheus-operator-crds
+    chart_repo_url: "{{ prometheus_operator_crds_chart_repo }}"
+    chart_version: "{{ prometheus_operator_crds_chart_version }}"
+    release_namespace: kube-system
+    kubeconfig: "{{ kubeconfig_path }}"
+    wait: true

@@ -1,0 +1,3 @@
+---
+# Chart repository. Point it at an internal Helm repository when nodes cannot reach the internet.
+ingress_nginx_chart_repo: https://kubernetes.github.io/ingress-nginx

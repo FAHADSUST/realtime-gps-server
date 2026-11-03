@@ -1,0 +1,250 @@
+# MySQL, Redis and RabbitMQ: one replica each, on replicated Longhorn volumes. A node failure means
+# a restart elsewhere with the same data, not a failover between copies.
+
+# --- MySQL 8.4 LTS: one schema and one user per service --------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  labels:
+    {{- include "gps.labels" (dict "name" "mysql") | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: mysql
+  ports:
+    - name: mysql
+      port: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  labels:
+    {{- include "gps.labels" (dict "name" "mysql") | nindent 4 }}
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mysql
+  template:
+    metadata:
+      labels:
+        {{- include "gps.labels" (dict "name" "mysql") | nindent 8 }}
+    spec:
+      containers:
+        - name: mysql
+          image: {{ .Values.mysql.image }}
+          args:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_0900_ai_ci
+            - --max_connections=500
+          env:
+            - name: TZ
+              value: UTC
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom: {secretKeyRef: {name: gps-secrets, key: mysql-root-password}}
+            # Read by the init script on the first start only.
+            - name: GPS_ID_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: gps-secrets, key: mysql-id-password}}
+            - name: GPS_HISTORY_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: gps-secrets, key: mysql-history-password}}
+          ports:
+            - name: mysql
+              containerPort: 3306
+          readinessProbe:
+            exec:
+              command: [sh, -c, 'mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent']
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: [sh, -c, 'mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent']
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.mysql.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: mysql-init
+            # Executable: MySQL's entrypoint runs it, rather than sourcing it into its own shell.
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ .Values.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.mysql.storage }}
+---
+# --- Redis 7.4: each user's last position and the geo index ----------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  labels:
+    {{- include "gps.labels" (dict "name" "redis") | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: redis
+  ports:
+    - name: redis
+      port: 6379
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  labels:
+    {{- include "gps.labels" (dict "name" "redis") | nindent 4 }}
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        {{- include "gps.labels" (dict "name" "redis") | nindent 8 }}
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          # noeviction: a silently evicted geo entry would mean a user vanishing from radius results.
+          args:
+            - redis-server
+            - --appendonly
+            - "yes"
+            - --maxmemory
+            - {{ .Values.redis.maxmemory | quote }}
+            - --maxmemory-policy
+            - noeviction
+            - --requirepass
+            - $(REDIS_PASSWORD)
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom: {secretKeyRef: {name: gps-secrets, key: redis-password}}
+            # Lets redis-cli in the probes authenticate without the password on its command line.
+            - name: REDISCLI_AUTH
+              valueFrom: {secretKeyRef: {name: gps-secrets, key: redis-password}}
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: [redis-cli, ping]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [redis-cli, ping]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ .Values.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.redis.storage }}
+---
+# --- RabbitMQ 4: the location queue between the ping and history services -------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  labels:
+    {{- include "gps.labels" (dict "name" "rabbitmq") | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+    - name: management
+      port: 15672
+    - name: metrics
+      port: 15692
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  labels:
+    {{- include "gps.labels" (dict "name" "rabbitmq") | nindent 4 }}
+spec:
+  serviceName: rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rabbitmq
+  template:
+    metadata:
+      labels:
+        {{- include "gps.labels" (dict "name" "rabbitmq") | nindent 8 }}
+    spec:
+      containers:
+        - name: rabbitmq
+          image: {{ .Values.rabbitmq.image }}
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: gps
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom: {secretKeyRef: {name: gps-secrets, key: rabbitmq-password}}
+          ports:
+            - name: amqp
+              containerPort: 5672
+            - name: management
+              containerPort: 15672
+            # The bundled rabbitmq_prometheus plugin.
+            - name: metrics
+              containerPort: 15692
+          readinessProbe:
+            exec:
+              command: [rabbitmq-diagnostics, -q, check_port_connectivity]
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 20
+          livenessProbe:
+            exec:
+              command: [rabbitmq-diagnostics, -q, ping]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 20
+            failureThreshold: 4
+          resources:
+            {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ .Values.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.rabbitmq.storage }}

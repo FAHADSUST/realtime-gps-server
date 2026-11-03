@@ -1,0 +1,58 @@
+# Static values for Grafana (grafana-community chart). The host name and root URL are set per
+# cluster in templates/grafana.yaml.
+
+# Credentials from the grafana-admin Secret, written by Ansible from the vault.
+admin:
+  existingSecret: grafana-admin
+
+# Users, preferences and annotations survive restarts. Dashboards and data sources do not need to:
+# they are provisioned from ConfigMaps on every start.
+persistence:
+  enabled: true
+  storageClassName: longhorn
+  size: 2Gi
+# The volume is ReadWriteOnce: the old pod must stop before the new one can start.
+deploymentStrategy:
+  type: Recreate
+
+# Data sources and dashboards come from ConfigMaps labelled grafana_datasource / grafana_dashboard:
+# kube-prometheus-stack's (Prometheus, Alertmanager, Kubernetes dashboards) and Cilium's, from any
+# namespace.
+sidecar:
+  datasources:
+    enabled: true
+    label: grafana_datasource
+    labelValue: "1"
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    searchNamespace: ALL
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  path: /
+  pathType: Prefix
+
+grafana.ini:
+  # A private installation: no update checks, usage reporting or external avatars.
+  analytics:
+    check_for_updates: false
+    check_for_plugin_updates: false
+    reporting_enabled: false
+    feedback_links_enabled: false
+  news:
+    news_feed_enabled: false
+  security:
+    cookie_secure: true
+    disable_gravatar: true
+  users:
+    allow_sign_up: false
+
+serviceMonitor:
+  enabled: true
+
+# Helm test pods have no place in a GitOps deployment.
+testFramework:
+  enabled: false

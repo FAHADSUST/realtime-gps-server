@@ -1,0 +1,62 @@
+# Shared configuration for every GPS service on Kubernetes: what Consul KV holds in the local stack
+# (deploy/consul/kv), minus the secrets, which arrive as environment variables from the gps-secrets
+# Secret. Mounted at /app/config/application.yml, which Spring Boot reads on top of the packaged
+# configuration.
+
+spring:
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+  threads:
+    virtual:
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    # Latency histograms, so dashboards and alerts can compute percentiles across replicas.
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+logging:
+  # One JSON object per line (Elastic Common Schema), carrying the request's MDC fields -
+  # correlationId, companyId, userId - so Loki can filter on any of them.
+  structured:
+    format:
+      console: ecs
+  level:
+    com.rls.gps: INFO
+
+# Ping service tuning (deploy/consul/kv/ping-service.yml); the other services ignore it.
+gps:
+  ping:
+    redis:
+      key-prefix: gps
+      last-location-ttl: 24h
+    buffer:
+      capacity: 50000
+      max-batch-size: 500
+      flush-interval: 500ms
+      shutdown-timeout: 5s
+      overflow-policy: DROP_NEWEST
+    max-clock-skew: 5m

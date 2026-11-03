@@ -1,0 +1,26 @@
+# Managed by Ansible (role: containerd); local edits are overwritten.
+# Only what this cluster depends on is set here. Everything else keeps containerd's defaults:
+# `containerd config dump` shows the merged result.
+version = 3
+
+[plugins.'io.containerd.cri.v1.images']
+  snapshotter = 'overlayfs'
+
+  # The pod sandbox image kubeadm expects. The kubelet never garbage-collects pinned images.
+  [plugins.'io.containerd.cri.v1.images'.pinned_images]
+    sandbox = '{{ pause_image }}'
+
+  # Mirrors and private registry CAs live in <config_path>/<registry host>/hosts.toml.
+  [plugins.'io.containerd.cri.v1.images'.registry]
+    config_path = '{{ containerd_registry_config_dir }}'
+
+[plugins.'io.containerd.cri.v1.runtime'.containerd]
+  default_runtime_name = 'runc'
+
+  [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc]
+    runtime_type = 'io.containerd.runc.v2'
+
+    # systemd owns the cgroup tree on Ubuntu. The kubelet reads this choice through the CRI, so
+    # both always agree on the cgroup driver.
+    [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]
+      SystemdCgroup = true

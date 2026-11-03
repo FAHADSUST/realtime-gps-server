@@ -1,0 +1,59 @@
+---
+- name: Check whether the cluster is already initialised
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_init_admin_conf
+
+- name: Create the Kubernetes configuration directory
+  ansible.builtin.file:
+    path: /etc/kubernetes
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Only `kubeadm init` reads this file. Afterwards the cluster keeps its configuration in the
+# kubeadm-config ConfigMap; changing a setting then is a kubeadm reconfiguration, not a re-run.
+- name: Write the kubeadm configuration
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: /etc/kubernetes/kubeadm-config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+
+# Rejects unknown fields and invalid values before anything is changed on the node.
+- name: Validate the kubeadm configuration
+  ansible.builtin.command:
+    cmd: kubeadm config validate --config /etc/kubernetes/kubeadm-config.yaml
+  changed_when: false
+
+- name: Bootstrap the control plane
+  when: not kubeadm_init_admin_conf.stat.exists
+  block:
+    # Since Kubernetes 1.29, admin.conf is only authorised once kubeadm init has created its RBAC
+    # binding - which needs the API, which needs the VIP. kube-vip therefore starts with
+    # super-admin.conf on this first node and is switched to admin.conf right after init.
+    - name: Start kube-vip with the bootstrap credentials
+      ansible.builtin.include_role:
+        name: kube_vip
+      vars:
+        kube_vip_kubeconfig: /etc/kubernetes/super-admin.conf
+
+    - name: Run kubeadm init
+      ansible.builtin.command:
+        cmd: kubeadm init --config /etc/kubernetes/kubeadm-config.yaml --skip-token-print
+        creates: /etc/kubernetes/admin.conf
+
+- name: Run kube-vip with the regular admin credentials
+  ansible.builtin.include_role:
+    name: kube_vip
+
+- name: Wait for the API server behind the VIP
+  ansible.builtin.command:
+    cmd: kubectl --kubeconfig /etc/kubernetes/admin.conf get --raw /readyz
+  register: kubeadm_init_readyz
+  until: kubeadm_init_readyz.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false

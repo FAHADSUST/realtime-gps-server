@@ -1,0 +1,9 @@
+---
+# Applies Kubernetes objects that are not part of a chart (pools, issuers, ...). Include the role
+# with the manifest text and a short name for the task output.
+kubectl_apply_manifest: ""
+kubectl_apply_name: manifest
+
+# Set to true for manifests that contain secrets, so neither the manifest nor kubectl's output
+# shows up in Ansible's output or logs.
+kubectl_apply_no_log: false

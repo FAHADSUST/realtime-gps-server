@@ -1,0 +1,51 @@
+{{- if .Values.apps.grafana.enabled }}
+# Dashboards over Prometheus (and Loki). Wave 1: after the data sources it reads exist.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  {{- include "gitops.applicationSpec" (dict "namespace" .Values.cluster.monitoringNamespace) | nindent 2 }}
+  sources:
+    - repoURL: https://grafana-community.github.io/helm-charts
+      chart: grafana
+      targetRevision: {{ .Values.apps.grafana.chartVersion | quote }}
+      helm:
+        releaseName: grafana
+        valueFiles:
+          - $values/deploy/kubernetes/gitops/values/grafana.yaml
+        valuesObject:
+          # Grafana has its own login: TLS only, no operator basic authentication.
+          ingress:
+            annotations:
+              cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
+            hosts:
+              - {{ printf "grafana.%s" .Values.cluster.domain }}
+            tls:
+              - secretName: grafana-tls
+                hosts:
+                  - {{ printf "grafana.%s" .Values.cluster.domain }}
+          grafana.ini:
+            server:
+              root_url: {{ printf "https://grafana.%s" .Values.cluster.domain }}
+          {{- if .Values.apps.loki.enabled }}
+          # Prometheus and Alertmanager come from kube-prometheus-stack's ConfigMap; Loki from here.
+          datasources:
+            loki.yaml:
+              apiVersion: 1
+              datasources:
+                - name: Loki
+                  type: loki
+                  uid: loki
+                  access: proxy
+                  url: {{ printf "http://loki.%s.svc:3100" .Values.cluster.monitoringNamespace }}
+          {{- end }}
+    - repoURL: {{ .Values.gitops.repoURL }}
+      targetRevision: {{ .Values.gitops.targetRevision }}
+      ref: values
+{{- end }}

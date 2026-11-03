@@ -1,0 +1,44 @@
+# Managed by Ansible (role: cert_manager).
+{% if cert_manager_self_signed_ca %}
+# A self-signed issuer exists only to sign the root CA below.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-bootstrap
+spec:
+  selfSigned: {}
+---
+# The cluster's root CA, valid for 10 years. Its key is never rotated: when cert-manager renews the
+# certificate (after two thirds of its life) it re-signs the same key, so everything that trusts
+# this CA keeps trusting it.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ cluster_ca_secret }}
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: "{{ cert_manager_ca_common_name }}"
+  subject:
+    organizations: ["{{ cluster_name }}"]
+  secretName: {{ cluster_ca_secret }}
+  duration: 87600h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Never
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: selfsigned-bootstrap
+---
+{% endif %}
+# Signs every certificate in the cluster: Ingresses ask for it with the annotation
+# cert-manager.io/cluster-issuer: {{ cluster_issuer }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ cluster_issuer }}
+spec:
+  ca:
+    secretName: {{ cluster_ca_secret }}

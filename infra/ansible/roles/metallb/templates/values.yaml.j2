@@ -1,0 +1,22 @@
+# Helm values for MetalLB {{ metallb_chart_version }} (role: metallb).
+
+# Layer 2 mode only. The chart deploys FRR-K8s for BGP by default; nothing here speaks BGP.
+frrk8s:
+  enabled: false
+
+speaker:
+  # kubeadm labels control planes node.kubernetes.io/exclude-from-external-load-balancers, so a
+  # speaker there would never announce anything.
+  tolerateMaster: false
+
+prometheus:
+  # The chart's Role only grants pod and service discovery in metallb-system, which Prometheus
+  # already has cluster-wide.
+  rbacPrometheus: false
+  serviceMonitor:
+    enabled: true
+  # Alerts on pool usage and exhaustion, stale or unloaded configuration.
+  prometheusRule:
+    enabled: true
+    bgpSessionDown:
+      enabled: false

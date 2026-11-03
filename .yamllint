@@ -1,0 +1,26 @@
+# Shared YAML rules for infra/ and deploy/. Tuned to agree with ansible-lint, so a file passing one
+# does not fail the other.
+extends: default
+
+ignore: |
+  target/
+  infra/ansible/collections/
+  # Helm templates are Go templates, not YAML, until rendered.
+  deploy/kubernetes/**/templates/
+
+rules:
+  line-length:
+    max: 120
+    level: warning
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+  document-start: disable

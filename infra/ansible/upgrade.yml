@@ -1,0 +1,68 @@
+---
+# Moves the cluster to the Kubernetes version in versions.yml, one minor version at a time.
+#
+#   ansible-playbook upgrade.yml --ask-vault-pass
+#
+# Read "Upgrading Kubernetes" in docs/on-prem/10-operations.md first: the add-ons must support the
+# target version, and versions.yml (kubernetes_version, pause_image) must already name it.
+
+- name: Check that the upgrade can go ahead
+  hosts: control_plane[0]
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read the cluster's current version
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig={{ kubeconfig_path }}
+          - version
+          - --output=json
+      register: upgrade_server_version
+      changed_when: false
+
+    # kubeadm moves one minor version per upgrade; skipping one is not supported.
+    - name: Check the target is the same or the next minor version
+      ansible.builtin.assert:
+        that:
+          - upgrade_target_minor | int - upgrade_current_minor | int in [0, 1]
+        fail_msg: >-
+          The cluster runs 1.{{ upgrade_current_minor }}; kubernetes_version {{ kubernetes_version }} is
+          more than one minor version away. Upgrade one minor version at a time.
+        quiet: true
+      vars:
+        upgrade_current_minor: >-
+          {{ (upgrade_server_version.stdout | from_json)['serverVersion']['minor'] | regex_replace('[^0-9]', '') }}
+        upgrade_target_minor: "{{ kubernetes_version.split('.')[1] }}"
+
+    - name: Check that every node is Ready
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig={{ kubeconfig_path }}
+          - wait
+          - --for=condition=Ready
+          - nodes
+          - --all
+          - --timeout=60s
+      changed_when: false
+
+    # The way back if the upgrade goes wrong (restoring is in the operations guide).
+    - name: Take an etcd snapshot first
+      ansible.builtin.systemd_service:
+        name: etcd-snapshot.service
+        state: started
+
+- name: Upgrade the control planes, one at a time
+  hosts: control_plane
+  serial: 1
+  become: true
+  roles:
+    - role: kubernetes_upgrade
+
+- name: Upgrade the workers, one at a time
+  hosts: workers
+  serial: 1
+  become: true
+  roles:
+    - role: kubernetes_upgrade

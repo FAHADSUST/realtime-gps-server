@@ -1,0 +1,3 @@
+# The image only needs the jar Maven built (see the Dockerfile).
+*
+!target/ping-service.jar

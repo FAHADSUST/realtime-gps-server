@@ -1,0 +1,24 @@
+# Written by Ansible (role: kubeadm_join) for a single `kubeadm join` and deleted right after it:
+# it contains a bootstrap token{{ ' and the key to the cluster certificates' if inventory_hostname in groups['control_plane'] else '' }}.
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: JoinConfiguration
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: "{{ kubernetes_api_vip }}:{{ kubernetes_api_port }}"
+    token: "{{ kubeadm_join_token }}"
+    # Pins the cluster CA, so the node cannot be talked into joining another cluster.
+    caCertHashes:
+      - "{{ kubeadm_join_ca_cert_hash }}"
+nodeRegistration:
+  name: "{{ inventory_hostname }}"
+  criSocket: unix:///run/containerd/containerd.sock
+  kubeletExtraArgs:
+    - name: node-ip
+      value: "{{ node_ip }}"
+{% if inventory_hostname in groups['control_plane'] %}
+controlPlane:
+  localAPIEndpoint:
+    advertiseAddress: "{{ node_ip }}"
+    bindPort: {{ kubernetes_api_port }}
+  certificateKey: "{{ kubeadm_join_certificate_key.stdout }}"
+{% endif %}

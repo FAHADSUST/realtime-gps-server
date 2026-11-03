@@ -1,0 +1,42 @@
+---
+# Secrets that applications deployed by Argo CD reference by name. Git never holds their values:
+# Ansible writes them from the vault, the manifests in Git only name them. Each entry becomes one
+# Secret (of `type`, Opaque by default); its namespace is created if missing.
+platform_secrets_list:
+  - name: grafana-admin
+    namespace: "{{ monitoring_namespace }}"
+    data:
+      admin-user: admin
+      admin-password: "{{ vault_grafana_admin_password }}"
+  # The registry only accepts bcrypt. The salt is derived rather than random, so the Secret - and
+  # the registry - only change when the password does.
+  - name: registry-htpasswd
+    namespace: registry
+    data:
+      htpasswd: >-
+        {{ platform_secrets_registry_user }}:{{ vault_registry_password
+        | password_hash('bcrypt', salt=platform_secrets_registry_salt, rounds=12) }}
+  # The GPS application: every credential its services and data stores use.
+  - name: gps-secrets
+    namespace: gps
+    data:
+      gateway-token: "{{ vault_gateway_token }}"
+      jwt-secret: "{{ vault_jwt_secret }}"
+      server-secret: "{{ vault_server_secret }}"
+      mysql-root-password: "{{ vault_mysql_root_password }}"
+      mysql-id-password: "{{ vault_mysql_id_password }}"
+      mysql-history-password: "{{ vault_mysql_history_password }}"
+      rabbitmq-password: "{{ vault_rabbitmq_password }}"
+      redis-password: "{{ vault_redis_password }}"
+  # Lets the cluster pull the GPS images from the registry, with the same account.
+  - name: registry-pull
+    namespace: gps
+    type: kubernetes.io/dockerconfigjson
+    data:
+      .dockerconfigjson: >-
+        {{ {'auths': {'registry.' ~ cluster_domain: {'auth':
+        (platform_secrets_registry_user ~ ':' ~ vault_registry_password) | b64encode}}} | to_json }}
+
+# The registry account that pushes the images and pulls them into the cluster.
+platform_secrets_registry_user: gps
+platform_secrets_registry_salt: "{{ ((cluster_name ~ vault_registry_password) | hash('sha256'))[0:21] }}e"

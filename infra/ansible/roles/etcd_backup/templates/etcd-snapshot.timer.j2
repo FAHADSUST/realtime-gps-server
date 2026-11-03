@@ -1,0 +1,12 @@
+# Managed by Ansible (role: etcd_backup).
+[Unit]
+Description=Daily etcd snapshot
+
+[Timer]
+OnCalendar={{ etcd_backup_schedule }}
+RandomizedDelaySec=15m
+# A run missed while the node was down happens at the next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

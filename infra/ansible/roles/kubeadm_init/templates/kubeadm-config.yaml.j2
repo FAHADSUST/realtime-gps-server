@@ -1,0 +1,56 @@
+# Managed by Ansible (role: kubeadm_init). Read once, by `kubeadm init` on {{ inventory_hostname }}.
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: "{{ node_ip }}"
+  bindPort: {{ kubernetes_api_port }}
+nodeRegistration:
+  name: "{{ inventory_hostname }}"
+  criSocket: unix:///run/containerd/containerd.sock
+  kubeletExtraArgs:
+    - name: node-ip
+      value: "{{ node_ip }}"
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+clusterName: "{{ cluster_name }}"
+kubernetesVersion: "v{{ kubernetes_version }}"
+# Every node and client reaches the API through the VIP, so losing one control plane loses nothing.
+controlPlaneEndpoint: "{{ kubernetes_api_vip }}:{{ kubernetes_api_port }}"
+networking:
+  podSubnet: "{{ pod_cidr }}"
+  serviceSubnet: "{{ service_cidr }}"
+  dnsDomain: "{{ cluster_dns_domain }}"
+apiServer:
+  certSANs:
+    - "{{ kubernetes_api_vip }}"
+    - "{{ kubernetes_api_hostname }}"
+{% for san in kubeadm_init_extra_cert_sans %}
+    - "{{ san }}"
+{% endfor %}
+# Prometheus scrapes these from other nodes, so they listen on all addresses instead of localhost.
+# The controller manager and scheduler still require an authorised client for /metrics.
+controllerManager:
+  extraArgs:
+    - name: bind-address
+      value: 0.0.0.0
+scheduler:
+  extraArgs:
+    - name: bind-address
+      value: 0.0.0.0
+etcd:
+  local:
+    extraArgs:
+      # Read-only metrics over plain HTTP; etcd's client and peer traffic stays on mutual TLS.
+      - name: listen-metrics-urls
+        value: http://0.0.0.0:2381
+# Cilium replaces kube-proxy. Kept in the cluster's kubeadm-config, so upgrades leave it out too.
+proxy:
+  disabled: true
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
+# Graceful node shutdown: on a reboot, pods get time to stop and volumes to detach cleanly.
+shutdownGracePeriod: 60s
+shutdownGracePeriodCriticalPods: 20s

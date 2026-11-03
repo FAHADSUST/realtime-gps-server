@@ -1,0 +1,80 @@
+# Static values for kube-prometheus-stack. Host names, external URLs and the cluster label are set
+# per cluster in templates/kube-prometheus-stack.yaml.
+
+# The CRDs come from Ansible (prometheus-operator-crds), at the same operator version, before any
+# add-on that ships monitoring objects.
+crds:
+  enabled: false
+
+cleanPrometheusOperatorObjectNames: true
+
+# Grafana is deployed on its own, from the grafana-community chart. This release still publishes
+# its Prometheus and Alertmanager data sources and its Kubernetes dashboards as labelled ConfigMaps,
+# which Grafana's sidecars load.
+grafana:
+  enabled: false
+  forceDeployDatasources: true
+  forceDeployDashboards: true
+
+# Cilium replaces kube-proxy: nothing to scrape, nothing to alert on.
+kubeProxy:
+  enabled: false
+defaultRules:
+  rules:
+    kubeProxy: false
+
+prometheusOperator:
+  # Webhook certificates from cert-manager instead of the chart's certificate jobs, which would run
+  # - and change the webhooks - on every Argo CD sync.
+  admissionWebhooks:
+    certManager:
+      enabled: true
+
+prometheus:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    pathType: Prefix
+    paths: [/]
+  prometheusSpec:
+    # Pick up every ServiceMonitor, PodMonitor, rule, probe and scrape config in the cluster, not
+    # only this release's. Everything installed before shipped its own.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+    # One replica on a replicated Longhorn volume: if its node fails, Prometheus restarts on another
+    # with its data. Retention is capped by size as well as age.
+    retention: 15d
+    retentionSize: 25GB
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 30Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        memory: 4Gi
+
+alertmanager:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    pathType: Prefix
+    paths: [/]
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 2Gi

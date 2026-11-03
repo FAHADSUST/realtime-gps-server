@@ -1,0 +1,55 @@
+---
+- name: Add the Kubernetes package repository
+  ansible.builtin.import_tasks: repository.yml
+
+- name: Read installed package versions
+  ansible.builtin.package_facts:
+    manager: apt
+
+- name: Note the kubelet version already on the node
+  ansible.builtin.set_fact:
+    kubernetes_packages_installed: >-
+      {{ (ansible_facts['packages']['kubelet'] | default([{'version': ''}]) | first)['version'] }}
+
+- name: Refuse to change the Kubernetes version of an existing node
+  ansible.builtin.assert:
+    that: >-
+      kubernetes_packages_allow_version_change | bool
+      or kubernetes_packages_installed == ''
+      or kubernetes_packages_installed.startswith(kubernetes_version ~ '-')
+    fail_msg: >-
+      {{ inventory_hostname }} runs kubelet {{ kubernetes_packages_installed }} but kubernetes_version
+      is {{ kubernetes_version }}. A version change is a kubeadm upgrade, not a re-run of site.yml:
+      run upgrade.yml (docs/on-prem/10-operations.md).
+    quiet: true
+
+# Only kubelet, kubeadm and kubectl are pinned, by upstream version: the package revision suffix
+# (-1.1, -2.1) differs between releases. cri-tools only provides crictl, a debugging tool.
+# The index is refreshed every time: a cache from earlier in the run, or from a run the version
+# check stopped, would not know about a repository that was just added or switched.
+- name: Install kubelet, kubeadm and kubectl {{ kubernetes_version }}
+  ansible.builtin.apt:
+    name:
+      - "kubelet={{ kubernetes_version }}-*"
+      - "kubeadm={{ kubernetes_version }}-*"
+      - "kubectl={{ kubernetes_version }}-*"
+      - cri-tools
+    state: present
+    update_cache: true
+    allow_change_held_packages: "{{ kubernetes_packages_allow_version_change | bool }}"
+
+# Holding keeps unattended upgrades and a stray `apt upgrade` away from them.
+- name: Hold the Kubernetes packages at this version
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+# Until kubeadm init/join hands it a configuration, kubelet restarts every few seconds. Expected.
+- name: Enable kubelet at boot
+  ansible.builtin.systemd_service:
+    name: kubelet
+    enabled: true

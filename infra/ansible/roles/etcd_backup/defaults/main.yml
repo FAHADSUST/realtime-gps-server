@@ -1,0 +1,6 @@
+---
+# Snapshots of the control plane's etcd member, root-only: they contain every Secret in the cluster.
+etcd_backup_dir: /var/backups/etcd
+etcd_backup_keep: 7
+# systemd calendar syntax. A random delay of up to 15 minutes keeps the control planes apart.
+etcd_backup_schedule: "*-*-* 02:30:00"

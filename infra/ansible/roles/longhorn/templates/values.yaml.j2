@@ -1,0 +1,35 @@
+# Helm values for Longhorn {{ longhorn_chart_version }} (role: longhorn).
+
+persistence:
+  # "longhorn" becomes the cluster's default StorageClass: every volume keeps three replicas, on
+  # three different workers.
+  defaultClass: true
+  defaultClassReplicaCount: 3
+
+defaultSettings:
+  # Each worker's data disk is mounted here (role longhorn_node).
+  defaultDataPath: {{ longhorn_data_path }}
+  # Longhorn's default 30 % reservation assumes the disk is shared with the OS. Here it is a
+  # dedicated disk; the 25 % that must stay free (storageMinimalAvailablePercentage) is the guard.
+  storageReservedPercentageForDefaultDisk: 10
+  # When a node dies, its StatefulSet and Deployment pods are deleted so they restart elsewhere
+  # with their volumes, instead of hanging in Terminating until someone force-deletes them.
+  nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+  # A private cluster does not call Longhorn's upgrade responder on the internet.
+  upgradeChecker: false
+  allowCollectingLonghornUsageMetrics: false
+
+metrics:
+  serviceMonitor:
+    enabled: true
+
+networkPolicies:
+  # Longhorn limits traffic between its own components by default, and the manager's port 9500
+  # serves its API as well as its metrics. Only Prometheus's pods are let in to scrape it.
+  metricsScrapeSources:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ monitoring_namespace }}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus

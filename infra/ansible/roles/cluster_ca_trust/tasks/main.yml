@@ -1,0 +1,57 @@
+---
+# Only the public certificate is read; the CA's private key never leaves the cluster.
+- name: Read the cluster CA certificate
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ kubeconfig_path }}
+      - --namespace=cert-manager
+      - get
+      - secret
+      - "{{ cluster_ca_secret }}"
+      - '--output=jsonpath={.data.ca\.crt}'
+  delegate_to: "{{ first_control_plane }}"
+  run_once: true
+  register: cluster_ca_trust_certificate
+  changed_when: false
+
+- name: Check that the CA secret holds a CA certificate
+  ansible.builtin.assert:
+    that: cluster_ca_trust_certificate.stdout | length > 0
+    fail_msg: >-
+      Secret cert-manager/{{ cluster_ca_secret }} has no ca.crt. A CA brought in from outside needs
+      tls.crt, tls.key and ca.crt (see docs/on-prem/06-tls.md).
+    quiet: true
+  run_once: true
+
+# Lets the node itself - containerd pulling from the in-cluster registry, curl, kubectl - trust
+# certificates issued inside the cluster.
+- name: Trust the cluster CA on the node
+  ansible.builtin.copy:
+    content: "{{ cluster_ca_trust_certificate.stdout | b64decode }}"
+    dest: /usr/local/share/ca-certificates/{{ cluster_name }}-root-ca.crt
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Update the CA bundle
+    - Restart containerd to load the CA bundle
+
+# For browsers and workstations: import this file once and every *.{{ cluster_domain }} page is trusted.
+- name: Create the artifacts directory on the control machine
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/artifacts"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Save the CA certificate on the control machine
+  ansible.builtin.copy:
+    content: "{{ cluster_ca_trust_certificate.stdout | b64decode }}"
+    dest: "{{ playbook_dir }}/artifacts/{{ cluster_name }}-root-ca.crt"
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+  become: false

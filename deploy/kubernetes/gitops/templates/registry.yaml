@@ -1,0 +1,25 @@
+{{- if .Values.apps.registry.enabled }}
+# The cluster's own image registry. Wave 2: after observability, before the application whose
+# images it holds.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: registry
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  {{- include "gitops.applicationSpec" (dict "namespace" "registry") | nindent 2 }}
+  source:
+    repoURL: {{ .Values.gitops.repoURL }}
+    targetRevision: {{ .Values.gitops.targetRevision }}
+    path: deploy/kubernetes/registry
+    helm:
+      valuesObject:
+        cluster:
+          domain: {{ .Values.cluster.domain }}
+          issuer: {{ .Values.cluster.issuer }}
+          monitoringNamespace: {{ .Values.cluster.monitoringNamespace }}
+{{- end }}

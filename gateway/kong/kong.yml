@@ -174,7 +174,8 @@ plugins:
       credentials: false
       max_age: 3600
 
-  # Kong's own request/latency/status metrics, scraped from the Admin API at /metrics.
+  # Kong's own request/latency/status metrics at /metrics: on the Admin API locally, on the status
+  # listener (:8100) in the production image, which turns the Admin API off.
   - name: prometheus
     config:
       status_code_metrics: true

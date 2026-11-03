@@ -1,0 +1,36 @@
+---
+# Every version the platform installs, in one place. Upgrading a component starts here.
+# Pinned and checked against upstream in November 2026; see docs/on-prem/README.md for why.
+
+kubernetes_version: "1.36.6"
+containerd_version: "2.4.2"
+runc_version: "1.5.2"
+# kubeadm 1.36 expects this sandbox image; containerd pins the same one so the two never disagree.
+pause_image: registry.k8s.io/pause:3.10.2
+
+# SHA-256 of the release binaries installed outside apt, per CPU architecture. Bump them together
+# with the version: a stale checksum fails the download instead of installing something unverified.
+containerd_sha256:
+  amd64: 35880c1dd4627e8ce56526bfabb39c144e83458ffdb197ce6f05d17d94d7d91e
+  arm64: fdfab81a86192ddb8165d72f116ec985485c9e12505e323c4f4579c48020f276
+runc_sha256:
+  amd64: 599f6f94ff8c5057241eff0d54c3c74f95c34935b6457b33fe545defc61e9488
+  arm64: d10ecae898361832a059be2089bab92d158aec54661b18ed7346ed79628b46b0
+helm_sha256:
+  amd64: 0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b
+  arm64: 8cf8f66ecbc252ac8f7f06cca68aba88508ddfde3a6a34feb1678ad1694b4f88
+
+kube_vip_version: v1.3.1
+helm_version: v4.3.1
+
+# Helm charts installed by Ansible.
+# Prometheus Operator v0.94.2: must stay on the operator version of kube-prometheus-stack (92.17.0).
+prometheus_operator_crds_chart_version: 32.0.2
+# Cilium 1.20 is tested on Kubernetes 1.33 - 1.36: check its matrix before moving Kubernetes on.
+cilium_chart_version: 1.20.4
+metallb_chart_version: 0.16.1
+longhorn_chart_version: 1.13.0
+# Final release: the project was archived in March 2026 (see docs/on-prem/04-networking.md).
+ingress_nginx_chart_version: 4.15.1
+cert_manager_chart_version: v1.21.3
+argocd_chart_version: 10.11.6

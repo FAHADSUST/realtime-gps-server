@@ -1,0 +1,49 @@
+{{- if .Values.apps.kubePrometheusStack.enabled }}
+# Prometheus, Alertmanager, the Prometheus Operator, node-exporter and kube-state-metrics.
+# Wave 0: monitoring comes first, so everything deployed after it is watched from its first pod.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  {{- include "gitops.applicationSpec" (dict "namespace" .Values.cluster.monitoringNamespace "syncOptions" (list "RespectIgnoreDifferences=true")) | nindent 2 }}
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: {{ .Values.apps.kubePrometheusStack.chartVersion | quote }}
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/deploy/kubernetes/gitops/values/kube-prometheus-stack.yaml
+        valuesObject:
+          prometheus:
+            ingress:
+              {{- include "gitops.opsUiIngress" (dict "host" "prometheus" "root" $) | nindent 14 }}
+            prometheusSpec:
+              externalUrl: {{ printf "https://prometheus.%s" .Values.cluster.domain }}
+              externalLabels:
+                cluster: {{ .Values.cluster.name }}
+          alertmanager:
+            ingress:
+              {{- include "gitops.opsUiIngress" (dict "host" "alertmanager" "root" $) | nindent 14 }}
+            alertmanagerSpec:
+              externalUrl: {{ printf "https://alertmanager.%s" .Values.cluster.domain }}
+    - repoURL: {{ .Values.gitops.repoURL }}
+      targetRevision: {{ .Values.gitops.targetRevision }}
+      ref: values
+  # cert-manager injects the CA into the operator's webhooks after Argo CD applies them.
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+{{- end }}

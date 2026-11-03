@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: registry
+  labels:
+    app.kubernetes.io/name: registry
+data:
+  config.yml: |
+    version: 0.1
+    log:
+      level: info
+      formatter: json
+    storage:
+      filesystem:
+        rootdirectory: /var/lib/registry
+      # Allows deleting tags; space comes back with `registry garbage-collect`.
+      delete:
+        enabled: true
+    http:
+      addr: :5000
+      headers:
+        X-Content-Type-Options: [nosniff]
+      # Metrics for Prometheus on a port of their own, away from the API.
+      debug:
+        addr: :5001
+        prometheus:
+          enabled: true
+          path: /metrics
+    # Every request - push and pull - needs a user from the registry-htpasswd Secret, which Ansible
+    # writes from the vault.
+    auth:
+      htpasswd:
+        realm: {{ printf "registry.%s" .Values.cluster.domain }}
+        path: /auth/htpasswd
+    health:
+      storagedriver:
+        enabled: true
+        interval: 10s
+        threshold: 3

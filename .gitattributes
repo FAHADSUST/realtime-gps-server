@@ -1,0 +1,25 @@
+# Files that run on Linux nodes must keep LF endings even when checked out on Windows:
+# a CRLF in a shell script or a Jinja template breaks it in ways that are hard to see.
+* text=auto
+
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.j2        text eol=lf
+*.tf        text eol=lf
+*.tftpl     text eol=lf
+*.hcl       text eol=lf
+*.tfvars.example text eol=lf
+*.lua       text eol=lf
+*.cfg       text eol=lf
+*.toml      text eol=lf
+*.py        text eol=lf
+*.alloy     text eol=lf
+Dockerfile  text eol=lf
+# Everything under these trees is copied onto Linux nodes (unit files, configs, manifests).
+infra/**    text eol=lf
+deploy/**   text eol=lf
+
+*.png binary
+*.pdf binary
+*.jar binary

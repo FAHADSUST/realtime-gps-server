@@ -1,0 +1,9 @@
+---
+# Chart repository. Point it at an internal Helm repository when nodes cannot reach the internet.
+cert_manager_chart_repo: https://charts.jetstack.io
+
+# true: cert-manager creates the cluster's root CA itself. false: bring your own - create the
+# Secret cluster_ca_secret (tls.crt, tls.key and ca.crt, e.g. an intermediate from your enterprise
+# CA) in the cert-manager namespace before running; see docs/on-prem/06-tls.md.
+cert_manager_self_signed_ca: true
+cert_manager_ca_common_name: "{{ cluster_name }} root CA"

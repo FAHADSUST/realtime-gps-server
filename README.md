@@ -56,11 +56,15 @@ integration tests (failsafe, `mvn verify`). Coverage reports land in `target/sit
 ```
 realtime-gps/
 ├── pom.xml                  # parent POM: Java 21, Spring Boot/Cloud BOMs, surefire/failsafe/jacoco
-├── libs/gps-common/         # shared library every service depends on
-├── services/id-service/     # authentication and authorization
+├── libs/gps-common/         # shared web, security and error plumbing for every service
+├── libs/gps-messaging/      # the location queue contract shared by publisher and consumer
+├── services/                # id-service, ping-service, history-service
+├── gateway/kong/            # Kong declarative config, the rls_auth plugin, config tests
 ├── deploy/                  # docker-compose stack, MySQL init SQL, Consul KV seed files
-├── scripts/                 # build.sh (JDK 21), up.sh / down.sh / seed.sh (local stack)
-└── docs/images/             # architecture diagram from the original spec
+│   └── kubernetes/gitops/   # what Argo CD deploys on the on-prem cluster (app of apps)
+├── infra/                   # on-prem: Terraform (Proxmox VMs) and Ansible (cluster + platform)
+├── scripts/                 # build.sh (JDK 21), local stack and smoke-test scripts
+└── docs/                    # on-prem platform guides, architecture diagram
 ```
 
 ---
@@ -121,6 +125,33 @@ machine (its WSL disk image is missing). Compose definitions are validated with 
 and shell scripts are syntax-checked; Testcontainers integration tests are written and compile, but
 report as *skipped* rather than passing. They run for real as soon as Docker works.
 
+### Platform track — on-premises
+
+| # | Milestone | Status |
+|---|---|---|
+| P0 | Architecture, network plan, version matrix | ✅ done |
+| P1 | Terraform — Proxmox VMs and inventory | ✅ done ([guide](docs/on-prem/01-terraform.md)) |
+| P2 | Ansible — node baseline, containerd, Kubernetes packages | ✅ done² ([guide](docs/on-prem/02-ansible.md)) |
+| P3 | kubeadm — HA control plane with kube-vip | ✅ done² ([guide](docs/on-prem/03-kubernetes.md)) |
+| P4 | Cilium — CNI, kube-proxy replacement, Hubble | ✅ done² ([guide](docs/on-prem/03-kubernetes.md#cilium-the-pod-network)) |
+| P5 | MetalLB — L2 address pool | ✅ done² ([guide](docs/on-prem/04-networking.md)) |
+| P6 | Longhorn — replicated storage | ✅ done² ([guide](docs/on-prem/05-storage.md)) |
+| P7 | Ingress-NGINX | ✅ done² ([guide](docs/on-prem/04-networking.md#ingress-nginx)) |
+| P8 | cert-manager — internal CA | ✅ done² ([guide](docs/on-prem/06-tls.md)) |
+| P9 | Argo CD — GitOps app-of-apps | ✅ done² ([guide](docs/on-prem/07-gitops.md)) |
+| P10 | Prometheus | ✅ done² ([guide](docs/on-prem/08-observability.md)) |
+| P11 | Grafana | ✅ done² ([guide](docs/on-prem/08-observability.md#grafana)) |
+| P12 | Loki + Alloy | ✅ done² ([guide](docs/on-prem/08-observability.md#loki-and-alloy)) |
+| P13 | The application on Kubernetes | ✅ done² ([guide](docs/on-prem/09-application.md)) |
+| P14 | Validation and operations runbook | ✅ done² ([guide](docs/on-prem/10-operations.md)) |
+
+² Ansible cannot run on the Windows workstation this is developed on, so the playbooks have not
+been executed against nodes yet. They are checked with yamllint and by rendering every template and
+parsing the result — kubeadm configurations with `kubeadm config validate` from kubeadm 1.36.6,
+manifests with kubeconform, alert rules with promtool, the log pipeline with `alloy validate`. The
+Ansible syntax check and ansible-lint run in CI (`scripts/validate-platform.sh`), which has not run
+yet: it starts once this branch's pull request is opened.
+
 ---
 
 ## Running the local stack
@@ -137,6 +168,36 @@ Requires **Docker Desktop running**.
 
 `up.sh` starts every container, waits for its health check, and re-seeds Consul KV. `down.sh -v`
 also discards the MySQL/Redis/RabbitMQ data volumes for a clean slate.
+
+---
+
+## Running on-premises
+
+Docker Compose is for development. Production runs on a Kubernetes cluster you own, built by the
+pipeline Terraform → Ansible → kubeadm → Cilium → MetalLB → Longhorn → Ingress-NGINX → cert-manager
+→ Argo CD → Prometheus → Grafana → Loki. Architecture, network plan, versions and step-by-step
+guides: **[docs/on-prem](docs/on-prem/README.md)**. New to the platform, or presenting it? **[The
+platform, explained](docs/platform-explained/README.md)** tells the same story with diagrams: each
+tool and why it was chosen, end-to-end flows, failure scenarios, a 15-minute talk and interview
+questions.
+
+From bare Proxmox to the API answering at `https://api.rls.internal`:
+
+1. **Machines** — in `infra/terraform`, fill in `terraform.tfvars` and `terraform apply`: six VMs,
+   and the Ansible inventory written for you ([01](docs/on-prem/01-terraform.md)).
+2. **Secrets** — copy `infra/ansible/inventory/vault.example.yml` to
+   `group_vars/all/vault.yml`, fill it in, `ansible-vault encrypt` it ([02](docs/on-prem/02-ansible.md#secrets)).
+3. **Cluster and platform** — `ansible-playbook site.yml --ask-vault-pass` in `infra/ansible`:
+   Kubernetes, networking, storage, TLS and Argo CD; Argo CD then deploys monitoring, logging and the
+   image registry from Git ([03](docs/on-prem/03-kubernetes.md) – [08](docs/on-prem/08-observability.md)).
+4. **DNS and trust** — point `*.rls.internal` at `10.10.0.200` and import
+   `infra/ansible/artifacts/rls-onprem-root-ca.crt` on workstations
+   ([04](docs/on-prem/04-networking.md#dns), [06](docs/on-prem/06-tls.md)).
+5. **Release** — `./scripts/publish-images.sh`, then set `apps.gps.imageTag` (and `enabled`) in
+   `deploy/kubernetes/gitops/values.yaml` and merge ([09](docs/on-prem/09-application.md#releasing)).
+
+Day 2 — upgrades, backups, recovery — is in [10 — Operations](docs/on-prem/10-operations.md);
+`./scripts/validate-platform.sh` checks every change without a cluster.
 
 ---
 
@@ -1410,6 +1471,187 @@ This completes the History service's write path.
 *Verify:* `./scripts/build.sh -pl services/history-service -am verify` → `FixValidationTest` (7, no
 Docker) and `PoisonMessageIT` (4), including an unreadable message reaching the DLQ and the queue
 still working afterwards.
+
+### P0 — On-prem platform design
+
+[docs/on-prem](docs/on-prem/README.md) fixes the target before any infrastructure code: the
+pipeline, which layer Ansible owns and which Argo CD owns, the network plan, a version matrix
+checked against upstream, and the decisions behind it. Notable findings while pinning versions:
+Ingress-NGINX was archived in March 2026, Promtail is end-of-life, Grafana's OSS charts moved to
+`grafana-community`, and Kubernetes 1.36 is the newest release Cilium 1.20 supports.
+
+### P1 — Terraform: Proxmox VMs and inventory (P1.1 – P1.3)
+
+`infra/terraform` creates the cluster's VMs from an Ubuntu 24.04 cloud-init template and writes
+the Ansible inventory. Nodes are an explicit map validated for an odd control-plane count, unique
+addresses and a Longhorn disk per worker; Terraform owns every address on the node network, so a
+VIP or ingress IP colliding with a node fails the plan. Terraform may not reboot a node on its own.
+Validated against the real `bpg/proxmox` 0.119 schema, with plans exercised against the example and
+broken inputs. Guide: [01 — Terraform](docs/on-prem/01-terraform.md).
+
+### P2 — Ansible: node preparation (P2.1 – P2.5)
+
+`infra/ansible` prepares every node for kubeadm in one tagged play (`site.yml --tags nodes`): swap
+off, kernel modules and sysctls, time sync, then containerd 2.4.2 and runc 1.5.2 from their
+upstream releases — each download verified against a SHA-256 sum pinned next to its version — and
+kubelet, kubeadm and kubectl 1.36.6 from pkgs.k8s.io, held at that version. A guard refuses to move
+an existing node to another Kubernetes version outside a kubeadm upgrade, because a kubelet must
+never get ahead of its API server. Registry mirrors and overridable download locations let nodes
+without internet access install everything from inside the network. Every version lives in
+`group_vars/all/versions.yml`. Guide: [02 — Ansible](docs/on-prem/02-ansible.md).
+
+### P3 — kubeadm: HA control plane behind kube-vip (P3.1 – P3.4)
+
+`site.yml --tags kubeadm,crds` builds the cluster: `kubeadm init` on the first control plane from a
+validated v1beta4 configuration, then the other control planes join one at a time and the workers
+in parallel. Every client reaches the API through a virtual IP that kube-vip moves between the
+control planes by leader election, so losing a control plane costs a pause of seconds, not the API.
+kube-proxy is disabled in the stored cluster configuration, leaving services to Cilium even across
+upgrades. Join credentials are created per node, live for minutes and are deleted after use. The
+control planes get kubectl access and Helm 4.3.1, and the Prometheus Operator CRDs are installed so
+every later layer can ship its monitoring objects. Guide:
+[03 — Kubernetes](docs/on-prem/03-kubernetes.md).
+
+### P4 — Cilium: pod network without kube-proxy
+
+`site.yml --tags cilium` installs Cilium 1.20.4 with Helm and waits for every node to turn Ready.
+Cilium implements Services in eBPF instead of kube-proxy and reaches the API through the VIP; pod
+addresses come from kubeadm's pod network, routed natively between nodes (VXLAN is one variable
+away for routed networks). Its LoadBalancer IPAM is switched off so MetalLB alone hands out service
+addresses. Hubble records flows; agent, operator, Envoy and Hubble metrics ship as ServiceMonitors,
+with Grafana dashboards alongside. The values pass the chart's schema in `helm template`, and all 51
+rendered objects pass kubeconform. Guide:
+[03 — Kubernetes](docs/on-prem/03-kubernetes.md#cilium-the-pod-network).
+
+### P5 — MetalLB: LoadBalancer addresses in Layer 2
+
+`site.yml --tags metallb` installs MetalLB 0.16.1 in Layer 2 mode, without the BGP components the
+chart deploys by default, and configures two pools from the inventory: the ingress address alone,
+never auto-assigned, and the rest of the range for any other Service. Speakers run on workers only.
+Custom resources go through a new `kubectl_apply` role that diffs before a server-side apply, so
+re-runs report changes only when there are some; a small, unit-tested filter plugin does the
+address arithmetic. Metrics and pool-exhaustion alerts are enabled. Guide:
+[04 — Networking](docs/on-prem/04-networking.md).
+
+### P6 — Longhorn: replicated storage (P6.1 – P6.3)
+
+Terraform now tells Ansible where each worker's data disk is, by a stable device path. The workers
+get Longhorn's prerequisites (iSCSI, NFS client, encryption tools, a multipath blacklist), and their
+data disks are formatted and mounted at `/var/lib/longhorn` — but only after `lsblk` shows an empty,
+unpartitioned disk, so a wrong device name stops the run instead of destroying data (the check is
+unit-tested against nine disk layouts). Longhorn 1.13.0 becomes the default StorageClass with three
+replicas per volume, deletes pods stuck on dead nodes so they can move, does not call home, and lets
+Prometheus — and only Prometheus — through its network policy to scrape metrics. Guide:
+[05 — Storage](docs/on-prem/05-storage.md).
+
+### P7 — Ingress-NGINX: the HTTP entry point
+
+`site.yml --tags ingress` installs Ingress-NGINX 4.15.1 (controller 1.15.1, the project's final
+release) as a DaemonSet on the workers behind the reserved MetalLB address, with
+`externalTrafficPolicy: Local` so backends see real client addresses. It is the default
+IngressClass, writes JSON access logs, exports metrics, and keeps snippet annotations off. Because
+the project is archived, a CiliumNetworkPolicy lets only the API server reach its admission webhook
+— the path the 2025 IngressNightmare attacks used — and only Prometheus reach its metrics. The guide
+adds the DNS records and a migration path to Cilium's Gateway API. Guide:
+[04 — Networking](docs/on-prem/04-networking.md#ingress-nginx).
+
+### P8 — cert-manager: an internal CA, trusted everywhere (P8.1 – P8.4)
+
+`site.yml --tags tls` installs cert-manager v1.21.3 in HA and creates the cluster's own root CA —
+10 years, ECDSA, its key never rotated so trust survives renewals — behind the `rls-ca`
+ClusterIssuer; an enterprise intermediate can be used instead. No internet or ACME is involved.
+Every node trusts the CA (read without touching its private key), containerd reloads it for
+in-cluster registries, and a copy is saved for workstations. Ingress-NGINX serves a cert-manager
+`*.rls.internal` certificate by default. Secrets now have one home: an Ansible Vault file created
+from `inventory/vault.example.yml`. Its first entry protects the operator UIs, now published at
+`hubble.rls.internal` and `longhorn.rls.internal` over TLS behind basic authentication, applied
+with output suppressed. Guide: [06 — TLS](docs/on-prem/06-tls.md).
+
+### P9 — Argo CD: Git takes over (P9.1 – P9.2)
+
+`site.yml --tags argocd` installs Argo CD 3.5.6 at `https://argocd.rls.internal` — TLS from the
+cluster CA, admin password hash from the vault, two replicas of the server and repo server,
+metrics for Prometheus — and restores the Application health check so sync waves wait for healthy
+applications. Ansible then creates a single root Application that deploys the new
+`deploy/kubernetes/gitops` chart from this repository, passing in the cluster's domain, issuer and
+repository from the inventory so Git holds no environment details. The chart defines the `platform`
+AppProject, restricted to known sources and namespaces, and a shared spec for the applications the
+next layers add: automated sync with pruning and self-healing, server-side apply, retries. The play
+waits until Argo CD has synced from Git. Guide: [07 — GitOps](docs/on-prem/07-gitops.md).
+
+### P10 — Prometheus and Alertmanager, from Git
+
+The first application in the app of apps: kube-prometheus-stack 92.17.0, deployed by Argo CD in
+sync wave 0 from the upstream chart plus a values file in this repository, with host names and
+labels filled in per cluster. Prometheus selects every monitor and rule in the cluster, so the
+ServiceMonitors each earlier layer shipped — Cilium, MetalLB, Longhorn, Ingress-NGINX,
+cert-manager, Argo CD — are scraped from its first start, as are the control plane components
+kubeadm exposed. CRDs come from Ansible, Grafana from its own chart, kube-proxy monitoring is off,
+and webhook certificates come from cert-manager so syncs stay quiet. Prometheus keeps 15 days on a
+30 Gi Longhorn volume; Prometheus and Alertmanager are published over TLS behind the operator
+login. Rendered exactly as Argo CD will (88 objects, all schema-valid). Guide:
+[08 — Observability](docs/on-prem/08-observability.md).
+
+### P11 — Grafana
+
+Grafana 13.3.0 from the grafana-community chart (Grafana Labs deprecated its own), deployed by
+Argo CD in wave 1 at `https://grafana.rls.internal`. Its admin password comes from the vault through
+a new `platform_secrets` role, which writes every Secret the Argo CD applications reference and
+refuses placeholder values. Data sources and dashboards are provisioned from labelled ConfigMaps:
+kube-prometheus-stack now publishes its Prometheus and Alertmanager data sources and Kubernetes
+dashboards for it, and Cilium's dashboards are picked up from `kube-system`. A 2 Gi volume keeps
+users and preferences; update checks and usage reporting are off. Every Argo CD application is
+rendered the way Argo CD does and schema-validated (122 objects). Guide:
+[08 — Observability](docs/on-prem/08-observability.md#grafana).
+
+### P12 — Loki and Alloy: logs
+
+Argo CD deploys Loki 3.7.9 (grafana-community chart) next to Prometheus in wave 0 — a single binary
+with a TSDB index on a 30 Gi Longhorn volume, 14 days of retention enforced by the compactor, no
+gateway or caches, and its own metrics, alerts and dashboards. Grafana Alloy v1.21.3, Promtail's
+successor, follows in wave 1 as a DaemonSet on every node: it finds its node's pods through the API,
+reads their log files from disk, parses the runtime format and pushes them to Loki labelled by
+cluster, namespace, pod, container, app and node. Grafana gains Loki as a data source. The Alloy
+pipeline passes `alloy validate` from Alloy v1.21.3, and all 156 objects the four observability
+applications render are schema-valid. Guide:
+[08 — Observability](docs/on-prem/08-observability.md#loki-and-alloy).
+
+### P13 — The application on Kubernetes (P13.1 – P13.6)
+
+The services move to Spring Boot 3.5.16 and MySQL 8.4 LTS, and finally serve the Prometheus
+endpoint they listed (90 unit tests pass; the Docker-based integration tests skip here). Kong gets a
+production image with `kong.yml` and `rls_auth` baked in and an entrypoint that swaps in the real
+gateway token. Argo CD deploys the cluster's own image registry (CNCF Distribution 3.1.2,
+`registry.rls.internal`), and `scripts/publish-images.sh` builds and pushes every image of a release.
+The `gps` chart runs the three services and Kong — two replicas each, non-root on read-only
+filesystems, probed, without Consul — beside MySQL, Redis and RabbitMQ on Longhorn, with every
+credential coming from the vault. A default-deny network policy admits only the connections the
+system makes, Kong sees real client addresses, and ServiceMonitors, four `promtool`-checked alert
+rules and a Grafana dashboard come with it. Releasing is a Git change: set the image tag and merge.
+Guide: [09 — Application](docs/on-prem/09-application.md).
+
+### P14 — Validation and operations (P14.1 – P14.5)
+
+`scripts/validate-platform.sh` checks the whole platform without a cluster — yamllint, shellcheck,
+Terraform validate and a plan of the example topology, Ansible syntax, ansible-lint and unit tests,
+every Argo CD application rendered as Argo CD would and validated with kubeconform, promtool on the
+alert rules and dashboard queries, `alloy validate` on the log pipeline — and a GitHub Actions
+workflow runs it on every change, with pinned, checksum-verified tools. Each control plane now
+snapshots etcd every night, and `upgrade.yml` performs Kubernetes upgrades the kubeadm way, node by
+node. [10 — Operations](docs/on-prem/10-operations.md) is the runbook: routine work, upgrades of
+every component, what to back up, and step-by-step recovery from a lost worker, a lost control
+plane, lost quorum, a damaged volume, a lost cluster and expired certificates.
+
+### The platform, explained
+
+[docs/platform-explained](docs/platform-explained/README.md) tells the platform's story for anyone
+learning it or presenting it, diagrams first: the big picture and who installs what; each of the
+twelve tools with an everyday comparison, what it does here and why it was chosen; end-to-end flows
+as sequence diagrams — building the platform, a node joining, a location ping from DNS to MySQL, a
+radius query, sign-up, a release, a certificate, metrics and logs, a secret; security in layers;
+failure scenarios, backups and upgrades; how the code is validated; a 15-minute talk with speaker
+notes; 77 interview questions with answers; and a glossary. All 62 Mermaid diagrams parse and render
+with Mermaid 10 and 11.
 
 <!-- next-commit-log-entry -->
 

@@ -1,0 +1,127 @@
+# Kong, the API gateway: the production image (gateway/kong) with the reviewed kong.yml and the
+# rls_auth plugin, and the real gateway token from the gps-secrets Secret.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong
+  labels:
+    {{- include "gps.labels" (dict "name" "kong") | nindent 4 }}
+spec:
+  replicas: {{ .Values.kong.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kong
+  template:
+    metadata:
+      labels:
+        {{- include "gps.labels" (dict "name" "kong") | nindent 8 }}
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.images.pullSecret }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: kong
+      containers:
+        - name: kong
+          image: {{ include "gps.image" (dict "root" . "name" "kong") }}
+          env:
+            - name: GATEWAY_TOKEN
+              valueFrom: {secretKeyRef: {name: gps-secrets, key: gateway-token}}
+            # Requests arrive from Ingress-NGINX: take the client address from X-Forwarded-For,
+            # trusted only from the pod network, so per-IP rate limits apply to real clients.
+            - name: KONG_TRUSTED_IPS
+              value: {{ .Values.cluster.podCidr | quote }}
+            - name: KONG_REAL_IP_HEADER
+              value: X-Forwarded-For
+            - name: KONG_REAL_IP_RECURSIVE
+              value: "on"
+            # One NGINX worker per CPU of the node would be far more than this pod is given.
+            - name: KONG_NGINX_WORKER_PROCESSES
+              value: "2"
+          ports:
+            - name: proxy
+              containerPort: 8000
+            - name: status
+              containerPort: 8100
+          # Ready once the declarative configuration is loaded.
+          readinessProbe:
+            httpGet:
+              path: /status/ready
+              port: status
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: status
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.kong.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong
+  labels:
+    {{- include "gps.labels" (dict "name" "kong") | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: kong
+  ports:
+    - name: proxy
+      port: 8000
+      targetPort: proxy
+    - name: status
+      port: 8100
+      targetPort: status
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kong
+  labels:
+    {{- include "gps.labels" (dict "name" "kong") | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kong
+---
+# The public API: TLS at Ingress-NGINX, everything else - authentication, rate limits, routing -
+# in Kong.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  labels:
+    {{- include "gps.labels" (dict "name" "kong") | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - {{ printf "api.%s" .Values.cluster.domain }}
+      secretName: api-tls
+  rules:
+    - host: {{ printf "api.%s" .Values.cluster.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kong
+                port:
+                  name: proxy

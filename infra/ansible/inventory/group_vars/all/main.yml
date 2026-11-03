@@ -1,0 +1,45 @@
+---
+# Cluster-wide settings. Addresses on the node network are NOT set here: Terraform writes them
+# into the inventory (kubernetes_api_vip, metallb_address_pool, ingress_lb_ip, node_network_cidr)
+# after checking them against each other.
+
+cluster_name: rls-onprem
+
+# Base DNS domain for every UI and API: grafana.<domain>, api.<domain>, ...
+cluster_domain: rls.internal
+
+# In-cluster networks. Must not overlap the node network or anything the nodes need to reach.
+pod_cidr: 10.244.0.0/16
+service_cidr: 10.96.0.0/12
+cluster_dns_domain: cluster.local
+
+kubernetes_api_port: 6443
+# Optional DNS name for the API; added to the API server certificate alongside the VIP.
+kubernetes_api_hostname: "k8s-api.{{ cluster_domain }}"
+
+# The control plane every cluster-wide action (kubeadm init, Helm installs) runs on.
+first_control_plane: "{{ groups['control_plane'] | first }}"
+
+kubeconfig_path: /etc/kubernetes/admin.conf
+
+# Where Longhorn keeps replica data on every worker; each worker's data disk (the inventory's
+# longhorn_disk) is mounted here.
+longhorn_data_path: /var/lib/longhorn
+
+# Namespace of Prometheus, Grafana and Loki. Add-ons that restrict their traffic let Prometheus in
+# from here.
+monitoring_namespace: monitoring
+
+# cert-manager ClusterIssuer that signs every certificate in the cluster, and the Secret (in the
+# cert-manager namespace) holding its CA.
+cluster_issuer: rls-ca
+cluster_ca_secret: rls-root-ca
+
+# Where Argo CD reads the desired state of everything it deploys (deploy/kubernetes/gitops).
+# Point it at an internal Git server, a mirror of this repository, when the cluster has no
+# internet access; private repositories take credentials from the vault.
+gitops_repo_url: https://github.com/FAHADSUST/realtime-gps-server.git
+gitops_revision: main
+
+# CPU architecture in the form release artefacts use (amd64, arm64).
+node_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] }}"

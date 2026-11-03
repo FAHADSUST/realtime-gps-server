@@ -1,0 +1,21 @@
+# Managed by Ansible (role: cert_manager).
+# Ingress-NGINX's default certificate (its --default-ssl-certificate): presented for every host
+# under {{ cluster_domain }} whose Ingress lists it under tls without naming a secret of its own.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: default-tls
+  namespace: ingress-nginx
+spec:
+  secretName: default-tls
+  dnsNames:
+    - "*.{{ cluster_domain }}"
+    - "{{ cluster_domain }}"
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: {{ cluster_issuer }}

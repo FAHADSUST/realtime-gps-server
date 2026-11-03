@@ -1,0 +1,21 @@
+---
+# Checks the vault itself, not the Secrets: a value derived from a placeholder (a password hash,
+# for instance) would no longer contain it.
+- name: Check that no vault value is still an example placeholder
+  ansible.builtin.assert:
+    that: >-
+      query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^vault_'))
+      | map('string') | select('search', 'CHANGE-ME') | list | length == 0
+    fail_msg: >-
+      A value in inventory/group_vars/all/vault.yml still holds CHANGE-ME. Fill in every value
+      (docs/on-prem/02-ansible.md, "Secrets").
+    quiet: true
+  no_log: true
+
+- name: Write the secrets Argo CD applications use
+  ansible.builtin.include_role:
+    name: kubectl_apply
+  vars:
+    kubectl_apply_name: platform secrets
+    kubectl_apply_manifest: "{{ lookup('ansible.builtin.template', 'secrets.yaml.j2') }}"
+    kubectl_apply_no_log: true
